@@ -13,7 +13,6 @@ from app.db import case_conn
 from app.models import (
     ArtifactOut,
     AuditEntryOut,
-    DemoLoadResult,
     IngestResult,
     IntegrityResult,
     ValidationFindingOut,
@@ -21,7 +20,6 @@ from app.models import (
 from app.pipeline.ingest import (
     artifact_payload,
     ingest_file,
-    load_demo_case,
     verify_case_integrity,
 )
 from app.security import READ_CHUNK, sanitize_filename
@@ -86,23 +84,6 @@ async def acquire_artifact(
         sessions_rebuilt=result["sessions_rebuilt"],
         findings=[ValidationFindingOut(**f) for f in result["findings"]],
         duplicate=result["duplicate"],
-    )
-
-
-@router.post("/acquire/demo", response_model=DemoLoadResult)
-def acquire_demo(case_id: str) -> DemoLoadResult:
-    case_id = require_case_id(case_id)
-    try:
-        result = load_demo_case(case_id)
-    except FileNotFoundError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    return DemoLoadResult(
-        artifacts=[ArtifactOut(**a) for a in result["artifacts"]],
-        events_added=result["events_added"],
-        sessions_rebuilt=result["sessions_rebuilt"],
-        findings=[ValidationFindingOut(**f) for f in result["findings"]],
     )
 
 

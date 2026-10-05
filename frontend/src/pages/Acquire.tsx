@@ -50,7 +50,6 @@ function Acquire({ caseId, onChanged }: { caseId: string; onChanged: () => Promi
   const [dragOverCard, setDragOverCard] = useState<string | null>(null)
   const [bulkDragOver, setBulkDragOver] = useState(false)
   const [queue, setQueue] = useState<QueueItem[]>([])
-  const [demoBusy, setDemoBusy] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [integrity, setIntegrity] = useState<IntegrityResult | null>(null)
@@ -124,26 +123,6 @@ function Acquire({ caseId, onChanged }: { caseId: string; onChanged: () => Promi
     void drain()
   }
 
-  async function loadDemo() {
-    setDemoBusy(true)
-    setError(null)
-    setMessage(null)
-    try {
-      const result = await api.loadDemo(caseId)
-      setMessage(
-        result.events_added === 0
-          ? 'The sample pack is already loaded in this case (same SHA-256 hashes). Nothing added.'
-          : `Loaded sample evidence: ${result.events_added} events from ${result.artifacts.length} artifacts, ${result.sessions_rebuilt} proximity sessions.`,
-      )
-      setIntegrity(null)
-      await refresh()
-      await onChanged()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Demo load failed')
-    } finally {
-      setDemoBusy(false)
-    }
-  }
 
   async function verify() {
     setVerifying(true)
@@ -181,7 +160,7 @@ function Acquire({ caseId, onChanged }: { caseId: string; onChanged: () => Promi
     [integrity],
   )
 
-  const busy = queue.some((q) => q.status === 'uploading' || q.status === 'queued') || demoBusy
+  const busy = queue.some((q) => q.status === 'uploading' || q.status === 'queued')
 
   return (
     <div className="stack">
@@ -199,9 +178,6 @@ function Acquire({ caseId, onChanged }: { caseId: string; onChanged: () => Promi
                 Open Timeline
               </Link>
             ) : null}
-            <button type="button" className="btn secondary small" disabled={busy} onClick={() => void loadDemo()}>
-              {demoBusy ? 'Loading…' : 'Load sample evidence'}
-            </button>
           </div>
         </div>
 

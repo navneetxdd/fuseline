@@ -25,7 +25,6 @@ CASES_DIR = DATA_DIR / "cases"
 UPLOADS_DIR = DATA_DIR / "uploads"
 REGISTRY_DB = DATA_DIR / "registry.sqlite"
 
-SAMPLES_DIR = PROJECT_ROOT / "samples" / "demo_case"
 FRONTEND_DIST = PROJECT_ROOT / "frontend" / "dist"
 
 DEFAULT_CORRELATION_WINDOW_SECONDS = 300

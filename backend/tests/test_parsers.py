@@ -32,23 +32,23 @@ UTC_CTX = ParseContext()
 NY_CTX = ParseContext.for_timezone("America/New_York")
 
 
-# --- shipped demo samples ---------------------------------------------------------------------
+# --- packed test fixtures ---------------------------------------------------------------------
 
 
-def test_demo_samples_parse(demo_dir: Path):
-    app = AppUsageParser().parse(demo_dir / "app_usage.db", UTC_CTX)
+def test_fixture_samples_parse(fixture_dir: Path):
+    app = AppUsageParser().parse(fixture_dir / "app_usage.db", UTC_CTX)
     assert len(app.records) == 6 and app.skipped == 0
     assert any("maps" in (e.package or "") for e in app.records)
     assert app.records[0].event_type == "move_to_foreground"
 
-    browse = ChromiumHistoryParser().parse(demo_dir / "History", UTC_CTX)
+    browse = ChromiumHistoryParser().parse(fixture_dir / "History", UTC_CTX)
     assert len(browse.records) == 5
     assert any(e.domain and "google" in e.domain for e in browse.records)
 
-    loc = LocationParser().parse(demo_dir / "location.csv", UTC_CTX)
+    loc = LocationParser().parse(fixture_dir / "location.csv", UTC_CTX)
     assert len(loc.records) == 3 and loc.records[0].lat is not None
 
-    plaso = PlasoParser().parse(demo_dir / "plaso_sample.l2t.csv", UTC_CTX)
+    plaso = PlasoParser().parse(fixture_dir / "plaso_sample.l2t.csv", UTC_CTX)
     assert len(plaso.records) == 3
     assert {r.source for r in plaso.records} == {"browsing", "app_usage", "location"}
     assert plaso.records[0].source == "browsing"
@@ -63,8 +63,8 @@ def test_demo_samples_parse(demo_dir: Path):
         ("plaso_sample.l2t.csv", "plaso_timeline"),
     ],
 )
-def test_demo_samples_are_detected_by_content(demo_dir: Path, filename: str, parser_name: str):
-    assert detect_parser(demo_dir / filename).name == parser_name
+def test_fixture_samples_are_detected_by_content(fixture_dir: Path, filename: str, parser_name: str):
+    assert detect_parser(fixture_dir / filename).name == parser_name
 
 
 # --- detection is content based, never name based ----------------------------------------------
@@ -87,12 +87,12 @@ def test_unrecognised_content_is_rejected(tmp_path: Path):
         parse_artifact(junk)
 
 
-def test_source_hint_must_match_content(demo_dir: Path):
+def test_source_hint_must_match_content(fixture_dir: Path):
     with pytest.raises(ValueError, match="does not match source hint"):
-        detect_parser(demo_dir / "location.csv", preferred_source="browsing")
-    assert detect_parser(demo_dir / "location.csv", preferred_source="location") is not None
+        detect_parser(fixture_dir / "location.csv", preferred_source="browsing")
+    assert detect_parser(fixture_dir / "location.csv", preferred_source="location") is not None
     with pytest.raises(ValueError, match="Unknown source hint"):
-        detect_parser(demo_dir / "location.csv", preferred_source="nonsense")
+        detect_parser(fixture_dir / "location.csv", preferred_source="nonsense")
 
 
 def test_corrupt_sqlite_is_a_clean_error(tmp_path: Path):

@@ -12,12 +12,20 @@ _DATA_DIR = tempfile.mkdtemp(prefix="fuseline-test-")
 os.environ["FUSELINE_DATA_DIR"] = _DATA_DIR
 
 ROOT = Path(__file__).resolve().parents[2]
+FIXTURES = Path(__file__).resolve().parent / "fixtures" / "evidence"
 sys.path.insert(0, str(ROOT / "backend"))
 sys.path.insert(0, str(ROOT / "scripts"))
 sys.path.insert(0, str(Path(__file__).parent))
 
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
+
+FIXTURE_FILES = (
+    ("app_usage.db", "app_usage"),
+    ("History", "browsing"),
+    ("location.csv", "location"),
+    ("plaso_sample.l2t.csv", "plaso"),
+)
 
 
 def _force_remove(func, path, _exc):
@@ -33,13 +41,16 @@ def pytest_sessionfinish(session, exitstatus):
 
 
 @pytest.fixture(scope="session")
-def demo_dir() -> Path:
-    demo = ROOT / "samples" / "demo_case"
-    if not (demo / "app_usage.db").exists():
-        import seed_demo
+def fixture_dir() -> Path:
+    """Real evidence files used only by the test suite."""
+    if not (FIXTURES / "app_usage.db").exists():
+        import seed_test_fixtures
 
-        seed_demo.main()
-    return demo
+        seed_test_fixtures.main()
+    missing = [name for name, _ in FIXTURE_FILES if not (FIXTURES / name).exists()]
+    if missing:
+        raise FileNotFoundError(f"Missing test fixtures under {FIXTURES}: {missing}")
+    return FIXTURES
 
 
 @pytest.fixture(scope="session")
@@ -71,3 +82,27 @@ def upload(client: TestClient):
         return client.post(f"/api/cases/{case}/acquire", files={"file": (name, content)}, data={"source_hint": hint})
 
     return _upload
+
+
+@pytest.fixture
+def ingest_fixtures(client: TestClient, fixture_dir: Path, upload):
+    """Ingest the packed fixture set through the normal acquire API."""
+
+    def _ingest(case: str) -> dict:
+        artifacts = []
+        events_added = 0
+        sessions_rebuilt = 0
+        for filename, hint in FIXTURE_FILES:
+            r = upload(case, filename, fixture_dir / filename, hint=hint)
+            assert r.status_code == 200, r.text
+            body = r.json()
+            artifacts.append(body["artifact"])
+            events_added += body["events_added"]
+            sessions_rebuilt = body["sessions_rebuilt"]
+        return {
+            "artifacts": artifacts,
+            "events_added": events_added,
+            "sessions_rebuilt": sessions_rebuilt,
+        }
+
+    return _ingest

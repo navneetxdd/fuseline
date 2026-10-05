@@ -149,13 +149,6 @@ class IngestResult(BaseModel):
     duplicate: bool = False
 
 
-class DemoLoadResult(BaseModel):
-    artifacts: list[ArtifactOut]
-    events_added: int
-    sessions_rebuilt: int
-    findings: list[ValidationFindingOut]
-
-
 class AuditEntryOut(BaseModel):
     id: int
     ts: str

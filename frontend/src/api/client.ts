@@ -105,12 +105,6 @@ export type IngestResult = {
   duplicate: boolean
 }
 
-export type DemoResult = {
-  artifacts: Artifact[]
-  events_added: number
-  sessions_rebuilt: number
-  findings: Finding[]
-}
 
 export type AuditEntry = {
   id: number
@@ -272,7 +266,6 @@ export const api = {
   deleteCase: (id: string) => request<void>(`/api/cases/${id}`, { method: 'DELETE' }),
 
   listArtifacts: (id: string) => request<Artifact[]>(`/api/cases/${id}/artifacts`),
-  loadDemo: (id: string) => request<DemoResult>(`/api/cases/${id}/acquire/demo`, { method: 'POST' }),
   verify: (id: string) => request<IntegrityResult>(`/api/cases/${id}/verify`, { method: 'POST' }),
   audit: (id: string) => request<AuditEntry[]>(`/api/cases/${id}/audit`),
 

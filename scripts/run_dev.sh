@@ -16,10 +16,6 @@ fi
 
 .venv/bin/pip install -q -r requirements-dev.txt
 
-if [[ ! -f samples/demo_case/app_usage.db ]]; then
-  .venv/bin/python scripts/seed_demo.py
-fi
-
 if [[ ! -d frontend/node_modules ]]; then
   (cd frontend && npm install)
 fi

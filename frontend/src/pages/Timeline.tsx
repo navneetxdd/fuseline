@@ -131,7 +131,7 @@ function Workspace({ caseId, caseTimezone }: { caseId: string; caseTimezone: str
       <section className="panel">
         <h1>Timeline</h1>
         <div className="empty">
-          This case has no events yet. <Link to="/acquire">Acquire evidence</Link> or load the sample pack.
+          This case has no events yet. <Link to="/acquire">Acquire evidence</Link> from files or a connected device.
         </div>
       </section>
     )

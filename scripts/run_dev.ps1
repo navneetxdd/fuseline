@@ -19,10 +19,6 @@ if ($LASTEXITCODE -ne 0) { throw "Fuseline needs Python 3.11 or newer (found $(&
 & $VenvPython -m pip install -q -r requirements-dev.txt
 if ($LASTEXITCODE -ne 0) { throw "Installing Python dependencies failed." }
 
-if (-not (Test-Path ".\samples\demo_case\app_usage.db")) {
-  & $VenvPython .\scripts\seed_demo.py
-}
-
 if (-not (Test-Path ".\frontend\node_modules")) {
   Push-Location frontend
   npm install

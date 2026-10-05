@@ -46,7 +46,7 @@ Workflow: **Acquisition → Analysis → Validation → Report**
 - Self-contained HTML report (inline SVG chart, no scripts), CSV and lossless JSON exports
 - Append-only, hash-chained audit log; the HTML report includes the chain of custody
 
-**Also**: light/dark themes, keyboard-accessible chart and tables, fonts bundled (no third-party requests), bundled sample evidence plus a 3-day, ~3,800-event generator.
+**Also**: light/dark themes, keyboard-accessible chart and tables, fonts bundled (no third-party requests).
 
 ![Dark theme, whole-case overview](docs/screenshots/timeline-dark.png)
 
@@ -78,7 +78,7 @@ cd fuseline
 bash scripts/run_dev.sh
 ```
 
-The script creates `.venv`, installs dependencies, seeds the sample evidence, installs the UI, and starts both servers. Open http://127.0.0.1:5173. (If port 5173 is busy Vite picks the next one; Fuseline accepts any loopback origin.)
+The script creates `.venv`, installs dependencies, installs the UI, and starts both servers. Open http://127.0.0.1:5173. (If port 5173 is busy Vite picks the next one; Fuseline accepts any loopback origin.)
 
 <details>
 <summary>Manual setup</summary>
@@ -86,7 +86,6 @@ The script creates `.venv`, installs dependencies, seeds the sample evidence, in
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\pip install -r requirements-dev.txt     # Linux/macOS: .venv/bin/pip
-python scripts\seed_demo.py                              # (sample evidence is already in the repo)
 cd frontend; npm install; cd ..
 .\.venv\Scripts\python -m uvicorn app.main:app --reload --app-dir backend
 cd frontend; npm run dev
@@ -116,18 +115,16 @@ The compose file publishes the port on loopback only: Fuseline has no login (see
 ## Application workflow
 
 1. **Cases** — enter a case name, examiner and the **device timezone** (used only for timestamps that carry no timezone), then *Create & acquire*.
-2. **Acquire** — drop evidence files (or *Load sample evidence*), or under **App usage** use *Detect device…* to pull live app-usage via project-local `adb` (`tools/platform-tools/`, installed by `scripts/ensure_platform_tools.py` / `run_dev`). Browsing and location still need uploaded files. *Verify integrity* re-hashes every stored copy and checks the audit chain.
+2. **Acquire** — drop real evidence files, or under **App usage** use *Detect device…* to pull live app-usage and Download-folder exports via project-local `adb` (`tools/platform-tools/`, installed by `scripts/ensure_platform_tools.py` / `run_dev`). *Verify integrity* re-hashes every stored copy and checks the audit chain.
 3. **Timeline** — scroll to zoom, drag to pan (or drag the overview window); click a mark, a table row or a map point to inspect it. Click a proximity session to zoom to it and highlight its members on the chart and map. *Correlation…* changes how sessions are built.
 4. **Report** — review validation findings, sessions and the chain of custody; export HTML, CSV or JSON.
 
 ### Recommended walkthrough
 
 1. **Cases** → create a case → *Create & acquire*
-2. **Acquire** → *Load sample evidence* (17 events, 4 artifacts, 4 proximity sessions) → *Verify integrity*
+2. **Acquire** → upload evidence from the device / examiner export, or pull via USB → *Verify integrity*
 3. **Timeline** → click a session card → click a mark or a map point to inspect the event and its provenance
 4. **Report** → export HTML (and optionally CSV / JSON); note the chain of custody at the end of the HTML report
-
-Try it at scale: `python scripts/seed_demo.py --large` writes a three-day sample (~3,800 events) to `samples/large_demo/`; upload those three files into a case. The UI and API have been exercised with 60,000 events (ingest in a few seconds; each timeline query well under a second).
 
 ---
 
@@ -143,8 +140,6 @@ Formats are recognised from file **content** (SQLite schema, CSV header, XML/JSO
 | Plaso (optional) | `psort` L2TCSV and JSON-lines output; honours the timezone declared per row; mapped onto the lanes above |
 
 Not supported (export to one of the formats above first): raw UsageStats protobuf files, Chromium WAL sidecars (upload a checkpointed `History`), iOS databases.
-
-Sample artifacts live in `samples/demo_case/` (regenerate with `python scripts/seed_demo.py`): `app_usage.db`, `History`, `location.csv`, `plaso_sample.l2t.csv` → 17 events, 4 artifacts, 4 proximity sessions.
 
 ### Plaso
 
@@ -202,7 +197,6 @@ Interactive reference: http://127.0.0.1:8000/docs
 | GET / POST | `/api/cases` | List / create cases |
 | GET / PATCH / DELETE | `/api/cases/{id}` | Read / edit / delete a case |
 | POST | `/api/cases/{id}/acquire` | Upload an artifact (multipart: `file`, optional `source_hint`) |
-| POST | `/api/cases/{id}/acquire/demo` | Load the bundled sample pack |
 | GET | `/api/cases/{id}/artifacts` | Artifact inventory |
 | POST | `/api/cases/{id}/verify` | Re-hash stored evidence and verify the audit chain |
 | GET | `/api/cases/{id}/audit` | Chain-of-custody entries |
@@ -259,10 +253,9 @@ Fuseline's parsers are a convenience for triage and correlation; corroborate sig
 
 ```
 backend/app/         API routers, parsers, pipeline (normalise / correlate / validate), report templates
-backend/tests/       pytest suite (unit + API integration, incl. regression tests for past defects)
+backend/tests/       pytest suite + fixtures/evidence (test-only packed samples)
 frontend/src/        React UI: pages/, components/, lib/ (time & map maths), api/, state/
-samples/demo_case/   Small demo evidence fixtures
-scripts/             seed_demo.py, run_dev / run_prod (.ps1, .sh)
+scripts/             run_dev / run_prod (.ps1, .sh), ensure_platform_tools.py, seed_test_fixtures.py
 docs/                Problem statement, screenshots
 data/                Runtime case DBs, evidence copies, audit log (gitignored)
 ```

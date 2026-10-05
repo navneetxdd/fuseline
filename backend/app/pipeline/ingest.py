@@ -16,7 +16,6 @@ from app.config import (
     DEFAULT_CORRELATION_WINDOW_SECONDS,
     DEFAULT_MAX_SESSION_SPAN_SECONDS,
     DEFAULT_MIN_SOURCES,
-    SAMPLES_DIR,
     UPLOADS_DIR,
 )
 from app.db import case_conn, registry_conn
@@ -29,12 +28,6 @@ from app.security import READ_CHUNK, assert_safe_case_id, assert_under, sanitize
 from app.timeutil import now_iso
 
 EVENT_NAMESPACE = uuid.UUID("c1a2f5d0-3b7e-4e0a-9c55-2f0f6a3d8e10")
-DEMO_FILES = [
-    ("app_usage.db", "app_usage"),
-    ("History", "browsing"),
-    ("location.csv", "location"),
-    ("plaso_sample.l2t.csv", "plaso"),
-]
 
 
 @dataclass
@@ -372,42 +365,6 @@ def ingest_file(
         "sessions_rebuilt": sessions_n,
         "findings": findings,
         "duplicate": False,
-    }
-
-
-def load_demo_case(case_id: str) -> dict[str, Any]:
-    case_id = assert_safe_case_id(case_id)
-    if not SAMPLES_DIR.exists():
-        raise FileNotFoundError("Sample evidence missing. Run: python scripts/seed_demo.py")
-
-    artifacts: list[dict] = []
-    total_events = 0
-    try:
-        for filename, hint in DEMO_FILES:
-            path = SAMPLES_DIR / filename
-            if not path.exists():
-                continue
-            result = ingest_file(case_id, path, filename, preferred_source=hint, finalize=False)
-            artifacts.append(result["artifact"])
-            total_events += result["events_added"]
-    finally:
-        sessions_n, findings = finalize_case(case_id)
-
-    if not artifacts:
-        raise FileNotFoundError(
-            "No sample evidence files found under samples/demo_case. Run: python scripts/seed_demo.py"
-        )
-    audit.record(
-        "demo.load",
-        case_id=case_id,
-        actor=get_case(case_id)["examiner"],
-        detail={"artifacts": len(artifacts), "events_added": total_events},
-    )
-    return {
-        "artifacts": artifacts,
-        "events_added": total_events,
-        "sessions_rebuilt": sessions_n,
-        "findings": findings,
     }
 
 

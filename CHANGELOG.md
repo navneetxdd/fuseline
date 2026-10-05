@@ -25,7 +25,7 @@ A hardening and completeness release. Every fix below was reproduced against 1.0
 - Zoom / pan timeline with overview brush and density view, offline location track, session focus, timezone toggle, correlation settings, dark theme, keyboard access, multi-file upload with progress.
 - Case editing, validation of timezone names, new validation findings (`ROWS_SKIPPED`, `TZ_ASSUMED`, `NO_TIME_OVERLAP`, `NO_SESSIONS`, `EARLY_TS`).
 - Endpoints: `PATCH /cases/{id}`, `/verify`, `/audit`, `/overview`, `/locations`, `/events/{id}`, `/sessions/{id}/events`, `/sessions/params`, `/api/meta`.
-- Docker image and compose file, single-process run scripts, GitHub Actions CI, `scripts/seed_demo.py --large`.
+- Docker image and compose file, single-process run scripts, GitHub Actions CI.
 - Tests: from 15 backend tests to a full unit + API integration suite, plus frontend unit and component tests.
 
 ### Changed

@@ -27,10 +27,8 @@ def stored_files(case_id: str) -> list[Path]:
     return sorted(folder.glob("*")) if folder.exists() else []
 
 
-def load_demo(client, case_id):
-    r = client.post(f"/api/cases/{case_id}/acquire/demo")
-    assert r.status_code == 200, r.text
-    return r.json()
+def load_fixtures(client, case_id, ingest_fixtures):
+    return ingest_fixtures(case_id)
 
 
 # --- basics ------------------------------------------------------------------------------------
@@ -63,24 +61,24 @@ def test_case_crud_and_validation(client, make_case):
     assert client.get("/api/cases/479280c8-9ae9-49fe-8d25-2c7d749678bf/timeline").status_code == 404
 
 
-# --- demo pack ---------------------------------------------------------------------------------
+# --- fixture pack (via normal acquire) ---------------------------------------------------------
 
 
-def test_demo_pack_matches_documented_numbers(client, case_id, demo_dir):
-    result = load_demo(client, case_id)
+def test_fixture_pack_matches_documented_numbers(client, case_id, ingest_fixtures):
+    result = load_fixtures(client, case_id, ingest_fixtures)
     assert (len(result["artifacts"]), result["events_added"], result["sessions_rebuilt"]) == (4, 17, 4)
     case = client.get(f"/api/cases/{case_id}").json()
     assert (case["event_count"], case["artifact_count"], case["session_count"]) == (17, 4, 4)
 
-    again = load_demo(client, case_id)  # idempotent: everything is a duplicate
+    again = load_fixtures(client, case_id, ingest_fixtures)  # idempotent: duplicates by hash
     assert again["events_added"] == 0 and len(again["artifacts"]) == 4
     assert client.get(f"/api/cases/{case_id}").json()["event_count"] == 17
 
 
-def test_event_ids_are_deterministic_across_cases(client, make_case, demo_dir):
+def test_event_ids_are_deterministic_across_cases(client, make_case, ingest_fixtures):
     first, second = make_case(), make_case()
-    load_demo(client, first)
-    load_demo(client, second)
+    load_fixtures(client, first, ingest_fixtures)
+    load_fixtures(client, second, ingest_fixtures)
     ids = lambda c: [e["id"] for e in client.get(f"/api/cases/{c}/timeline").json()["events"]]  # noqa: E731
     assert ids(first) == ids(second) and len(ids(first)) == 17
 
@@ -307,8 +305,8 @@ def test_locations_are_downsampled_but_keep_first_and_last(client, big_case):
 # --- sessions & validation ---------------------------------------------------------------------
 
 
-def test_sessions_rebuild_with_parameters_and_stable_ids(client, case_id, demo_dir):
-    load_demo(client, case_id)
+def test_sessions_rebuild_with_parameters_and_stable_ids(client, case_id, ingest_fixtures):
+    load_fixtures(client, case_id, ingest_fixtures)
     before = client.get(f"/api/cases/{case_id}/sessions").json()
     rebuilt = client.post(f"/api/cases/{case_id}/sessions/rebuild?window_seconds=300").json()
     assert [s["id"] for s in before] == [s["id"] for s in rebuilt]  # deterministic
@@ -321,8 +319,8 @@ def test_sessions_rebuild_with_parameters_and_stable_ids(client, case_id, demo_d
     assert client.post(f"/api/cases/{case_id}/sessions/rebuild?window_seconds=0").status_code == 422
 
 
-def test_session_events_endpoint(client, case_id, demo_dir):
-    load_demo(client, case_id)
+def test_session_events_endpoint(client, case_id, ingest_fixtures):
+    load_fixtures(client, case_id, ingest_fixtures)
     top = client.get(f"/api/cases/{case_id}/sessions").json()[0]
     events = client.get(f"/api/cases/{case_id}/sessions/{top['id']}/events").json()
     assert [e["id"] for e in events] == top["member_event_ids"]
@@ -346,8 +344,8 @@ def test_validation_flags_disjoint_sources_and_single_source(client, case_id, up
 # --- reports & audit ---------------------------------------------------------------------------
 
 
-def test_reports_contain_provenance_and_exports_are_audited(client, case_id, demo_dir):
-    load_demo(client, case_id)
+def test_reports_contain_provenance_and_exports_are_audited(client, case_id, ingest_fixtures):
+    load_fixtures(client, case_id, ingest_fixtures)
     summary = client.get(f"/api/cases/{case_id}/report").json()
     assert summary["event_count"] == 17 and summary["session_count"] == 4
     assert summary["correlation"] == {"window_seconds": 300, "max_span_seconds": 1800, "min_sources": 2}
@@ -360,7 +358,7 @@ def test_reports_contain_provenance_and_exports_are_audited(client, case_id, dem
 
     payload = client.get(f"/api/cases/{case_id}/report/json").json()
     assert payload["generator"]["name"] == "fuseline" and len(payload["events"]) == 17
-    assert {e["action"] for e in payload["audit"]} >= {"case.create", "artifact.ingest", "demo.load", "report.export"}
+    assert {e["action"] for e in payload["audit"]} >= {"case.create", "artifact.ingest", "report.export"}
 
     csv_text = client.get(f"/api/cases/{case_id}/report/csv").text
     rows = list(csv.DictReader(io.StringIO(csv_text)))
@@ -369,11 +367,11 @@ def test_reports_contain_provenance_and_exports_are_audited(client, case_id, dem
     assert {a["detail"]["kind"] for a in exports} >= {"html", "json", "csv"}
 
 
-def test_html_report_hash_matches_the_csv_export(client, case_id, demo_dir):
+def test_html_report_hash_matches_the_csv_export(client, case_id, ingest_fixtures):
     import hashlib
     import re
 
-    load_demo(client, case_id)
+    load_fixtures(client, case_id, ingest_fixtures)
     html = client.get(f"/api/cases/{case_id}/report/html").text
     claimed = re.search(r"Events CSV SHA-256[^:]*: ([0-9a-f]{64})", html).group(1)
     actual = hashlib.sha256(client.get(f"/api/cases/{case_id}/report/csv").content).hexdigest()

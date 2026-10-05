@@ -148,8 +148,8 @@ def test_security_headers_present_and_api_not_cacheable():
     assert "cache-control" not in page.headers
 
 
-def test_parser_hint_requires_sniff(demo_dir: Path):
+def test_parser_hint_requires_sniff(fixture_dir: Path):
     from app.parsers.registry import detect_parser
 
     with pytest.raises(ValueError, match="does not match source hint"):
-        detect_parser(demo_dir / "location.csv", preferred_source="browsing")
+        detect_parser(fixture_dir / "location.csv", preferred_source="browsing")

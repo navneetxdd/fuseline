@@ -19,7 +19,6 @@ COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY backend ./backend
-COPY samples/demo_case ./samples/demo_case
 COPY --from=ui /ui/dist ./frontend/dist
 
 # Case databases and evidence copies live on a volume, owned by an unprivileged user.
