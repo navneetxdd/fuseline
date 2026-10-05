@@ -175,7 +175,7 @@ def adb_usagestats_dump(
             "user=0 ",
             "",
         ]
-    lines.append("  Last 24 hour events (timeRange=\"…\")" if modern else "  Usage Events:")
+    lines.append('  Last 24 hour events (timeRange="…")' if modern else "  Usage Events:")
     for package, event_type, when in events:
         ts = when.strftime("%Y-%m-%d %H:%M:%S")
         lines.append(f'    time="{ts}" type={event_type} package={package} class=.MainActivity instanceId=7')

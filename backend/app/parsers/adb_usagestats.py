@@ -10,9 +10,7 @@ from app.timeutil import TimestampError, to_iso_utc
 #   time="2024-06-15 10:00:00" type=MOVE_TO_FOREGROUND package=com.whatsapp class=... instanceId=12
 # Older Android dumps group them under "Usage Events:"; Android 12+ often uses
 # "Last 24 hour events (...)" (and similar windows) with no "Usage Events:" header.
-_EVENT_LINE = re.compile(
-    r'time="(?P<time>[^"]+)"\s+type=(?P<type>\w+)\s+package=(?P<package>\S+)(?P<rest>.*)'
-)
+_EVENT_LINE = re.compile(r'time="(?P<time>[^"]+)"\s+type=(?P<type>\w+)\s+package=(?P<package>\S+)(?P<rest>.*)')
 _KV = re.compile(r"(\w+)=(\S+)")
 _DUMP_MARKERS = (
     "Usage Events:",

@@ -427,7 +427,7 @@ def test_adb_usagestats_dump_ignores_non_event_sections(tmp_path: Path):
 def test_adb_usagestats_dump_skips_unparseable_lines(tmp_path: Path):
     path = tmp_path / "dumpsys.txt"
     text = (
-        "Usage Events:\n    time=\"not-a-real-event\" garbled\n"
+        'Usage Events:\n    time="not-a-real-event" garbled\n'
         + adb_usagestats_dump([("com.a", "MOVE_TO_FOREGROUND", BASE)], preamble=False).split("Usage Events:\n", 1)[1]
     )
     path.write_text(text, encoding="utf-8")

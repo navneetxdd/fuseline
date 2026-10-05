@@ -58,7 +58,6 @@ def bundled_adb_path() -> Path:
 
 def _candidate_paths() -> list[Path]:
     """Ordered places to look for an adb binary (existence checked by the caller)."""
-    names = (_adb_name(),)
     out: list[Path] = []
 
     env = os.environ.get("FUSELINE_ADB", "").strip()
