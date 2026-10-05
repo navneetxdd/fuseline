@@ -3,7 +3,9 @@ from __future__ import annotations
 import contextlib
 import tempfile
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
+
+BundleKind = Literal["app_usage", "location", "export"]
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
@@ -208,7 +210,7 @@ def acquire_device_bundle(case_id: str, serial: str) -> DeviceBundleResult:
     total_events = 0
     sessions_rebuilt = 0
 
-    def add_item(kind: str, label: str, result: dict[str, Any] | None, error: str | None) -> None:
+    def add_item(kind: BundleKind, label: str, result: dict[str, Any] | None, error: str | None) -> None:
         nonlocal total_events, sessions_rebuilt
         if error:
             items.append(DeviceBundleItem(kind=kind, label=label, ok=False, error=error))
