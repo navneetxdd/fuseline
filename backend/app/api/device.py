@@ -30,6 +30,8 @@ from app.models import (
 )
 from app.pipeline.ingest import get_case, ingest_file
 
+BundleKind = Literal["app_usage", "location", "export"]
+
 router = APIRouter(prefix="/api", tags=["device"])
 
 
