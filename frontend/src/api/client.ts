@@ -149,7 +149,24 @@ export type AdbDevice = {
 export type DeviceExport = {
   name: string
   remote_path: string
+  display_path: string
   size_bytes: number | null
+}
+
+export type DeviceBundleItem = {
+  kind: 'app_usage' | 'location' | 'export'
+  label: string
+  ok: boolean
+  events_added: number
+  duplicate: boolean
+  error: string | null
+  source_type: string | null
+}
+
+export type DeviceBundleResult = {
+  items: DeviceBundleItem[]
+  total_events_added: number
+  sessions_rebuilt: number
 }
 
 export type ReportSummary = {
@@ -253,11 +270,19 @@ export const api = {
     request<IngestResult>(`/api/cases/${caseId}/acquire/device/${encodeURIComponent(serial)}/app-usage`, {
       method: 'POST',
     }),
-  pullDeviceExport: (caseId: string, serial: string, filename: string) =>
+  pullDeviceLocation: (caseId: string, serial: string) =>
+    request<IngestResult>(`/api/cases/${caseId}/acquire/device/${encodeURIComponent(serial)}/location`, {
+      method: 'POST',
+    }),
+  pullDeviceExport: (caseId: string, serial: string, remotePath: string) =>
     request<IngestResult>(
-      `/api/cases/${caseId}/acquire/device/${encodeURIComponent(serial)}/export/${encodeURIComponent(filename)}`,
-      { method: 'POST' },
+      `/api/cases/${caseId}/acquire/device/${encodeURIComponent(serial)}/export`,
+      json('POST', { remote_path: remotePath }),
     ),
+  pullDeviceBundle: (caseId: string, serial: string) =>
+    request<DeviceBundleResult>(`/api/cases/${caseId}/acquire/device/${encodeURIComponent(serial)}/bundle`, {
+      method: 'POST',
+    }),
 
   listCases: () => request<Case[]>('/api/cases'),
   createCase: (body: CaseInput) => request<Case>('/api/cases', json('POST', body)),

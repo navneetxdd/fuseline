@@ -52,7 +52,7 @@ describe('DeviceUsagePanel', () => {
     renderPanel(<DeviceUsagePanel caseId={CASE_ID} onImported={vi.fn()} />)
     open()
     expect(await screen.findByText('unauthorized')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Pull app usage' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'App usage' })).toBeNull()
     expect(screen.getByText(/Accept the USB debugging prompt/)).toBeInTheDocument()
   })
 
@@ -81,7 +81,7 @@ describe('DeviceUsagePanel', () => {
     const onImported = vi.fn()
     renderPanel(<DeviceUsagePanel caseId={CASE_ID} onImported={onImported} />)
     open()
-    const button = await screen.findByRole('button', { name: 'Pull app usage' })
+    const button = await screen.findByRole('button', { name: 'App usage' })
     fireEvent.click(button)
     expect(pull).toHaveBeenCalledWith(CASE_ID, 'emulator-5554')
     await waitFor(() => expect(onImported).toHaveBeenCalledOnce())
@@ -94,7 +94,7 @@ describe('DeviceUsagePanel', () => {
     vi.spyOn(api, 'pullDeviceAppUsage').mockRejectedValue(new Error('adb shell dumpsys usagestats timed out'))
     renderPanel(<DeviceUsagePanel caseId={CASE_ID} onImported={vi.fn()} />)
     open()
-    fireEvent.click(await screen.findByRole('button', { name: 'Pull app usage' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'App usage' }))
     expect(await screen.findByText('adb shell dumpsys usagestats timed out')).toBeInTheDocument()
   })
 
@@ -103,7 +103,12 @@ describe('DeviceUsagePanel', () => {
       { serial: 'emulator-5554', state: 'device', model: 'Pixel_6', ready: true },
     ])
     vi.spyOn(api, 'deviceExports').mockResolvedValue([
-      { name: 'Records.json', remote_path: '/sdcard/Download/Records.json', size_bytes: null },
+      {
+        name: 'Records.json',
+        remote_path: '/sdcard/Download/Takeout/Records.json',
+        display_path: 'Download/Takeout/Records.json',
+        size_bytes: null,
+      },
     ])
     const pullExport = vi.spyOn(api, 'pullDeviceExport').mockResolvedValue({
       artifact: {
@@ -126,7 +131,7 @@ describe('DeviceUsagePanel', () => {
     renderPanel(<DeviceUsagePanel caseId={CASE_ID} onImported={vi.fn()} />)
     open()
     fireEvent.click(await screen.findByRole('button', { name: 'Pull & ingest' }))
-    expect(pullExport).toHaveBeenCalledWith(CASE_ID, 'emulator-5554', 'Records.json')
+    expect(pullExport).toHaveBeenCalledWith(CASE_ID, 'emulator-5554', '/sdcard/Download/Takeout/Records.json')
     expect(await screen.findByText(/Imported 3 events/)).toBeInTheDocument()
   })
 })

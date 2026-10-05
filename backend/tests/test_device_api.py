@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import timedelta
 
-from builders import BASE, adb_usagestats_dump
+from builders import BASE, adb_location_dump, adb_usagestats_dump
 
 from app.api import device as device_api
 from app.device import AdbDevice, AdbDeviceError, AdbNotAvailable
@@ -102,11 +102,24 @@ def test_list_exports_endpoint(client, monkeypatch):
     monkeypatch.setattr(
         device_api,
         "list_shared_exports",
-        lambda serial: [SharedExport(name="Records.json", remote_path="/sdcard/Download/Records.json")],
+        lambda serial: [
+            SharedExport(
+                name="Records.json",
+                remote_path="/sdcard/Download/Takeout/Records.json",
+                display_path="Download/Takeout/Records.json",
+            )
+        ],
     )
     r = client.get("/api/devices/emulator-5554/exports")
     assert r.status_code == 200
-    assert r.json() == [{"name": "Records.json", "remote_path": "/sdcard/Download/Records.json", "size_bytes": None}]
+    assert r.json() == [
+        {
+            "name": "Records.json",
+            "remote_path": "/sdcard/Download/Takeout/Records.json",
+            "display_path": "Download/Takeout/Records.json",
+            "size_bytes": None,
+        }
+    ]
 
 
 def test_pull_export_ingests_location_csv(client, case_id, monkeypatch, tmp_path):
@@ -120,3 +133,47 @@ def test_pull_export_ingests_location_csv(client, case_id, monkeypatch, tmp_path
     assert body["events_added"] >= 1
     assert body["artifact"]["source_type"] == "location"
     assert not export.exists()  # cleaned up by the route
+
+
+def test_pull_location_ingests_dumpsys(client, case_id, monkeypatch):
+    ms = int(BASE.timestamp() * 1000)
+    text = adb_location_dump(12.97, 77.59, ms)
+    monkeypatch.setattr(device_api, "pull_location_text", lambda serial: text)
+    r = client.post(f"/api/cases/{case_id}/acquire/device/emulator-5554/location")
+    assert r.status_code == 200, r.text
+    assert r.json()["events_added"] == 1
+    assert r.json()["artifact"]["parser"] == "adb_location_dump"
+
+
+def test_device_bundle_pulls_usage_and_exports(client, case_id, monkeypatch, tmp_path):
+    usage = adb_usagestats_dump([("com.a", "MOVE_TO_FOREGROUND", BASE)])
+    export = tmp_path / "location.csv"
+    export.write_text("timestamp,latitude,longitude\n2024-06-15T10:00:00Z,12.97,77.59\n", encoding="utf-8")
+
+    from app.device import SharedExport
+
+    monkeypatch.setattr(device_api, "pull_usagestats_text", lambda serial: usage)
+    monkeypatch.setattr(device_api, "pull_location_text", lambda serial: "Location Manager State:\n")
+    monkeypatch.setattr(
+        device_api,
+        "list_shared_exports",
+        lambda serial: [
+            SharedExport(
+                name="location.csv",
+                remote_path="/sdcard/Download/location.csv",
+                display_path="Download/location.csv",
+            )
+        ],
+    )
+
+    def fake_pull(serial, name=None, remote_path=None):
+        return export
+
+    monkeypatch.setattr(device_api, "pull_shared_export", fake_pull)
+
+    r = client.post(f"/api/cases/{case_id}/acquire/device/emulator-5554/bundle")
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["total_events_added"] >= 2
+    kinds = {item["kind"] for item in body["items"] if item["ok"]}
+    assert "app_usage" in kinds and "export" in kinds

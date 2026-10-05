@@ -154,7 +154,11 @@ def test_list_shared_exports_filters_supported_names(monkeypatch):
     def fake_run(args, **kwargs):
         if args[1:] == ["devices", "-l"]:
             return subprocess.CompletedProcess(args, 0, stdout=SAMPLE_DEVICES, stderr="")
+        if "find" in args:
+            return subprocess.CompletedProcess(args, 0, stdout="", stderr="")
         if "ls" in args:
+            if args[-1] != "/sdcard/Download":
+                return subprocess.CompletedProcess(args, 0, stdout="", stderr="")
             return subprocess.CompletedProcess(
                 args,
                 0,
@@ -167,8 +171,9 @@ def test_list_shared_exports_filters_supported_names(monkeypatch):
     monkeypatch.setattr(device.subprocess, "run", fake_run)
     found = device.list_shared_exports("emulator-5554")
     names = [e.name for e in found]
-    assert names == ["History", "location.csv", "Records.json"]
-    assert all("/sdcard/Download/" in e.remote_path or "/storage/emulated/0/Download/" in e.remote_path for e in found)
+    assert names == ["Records.json", "History", "location.csv"]
+    assert all(e.remote_path.startswith("/sdcard/Download/") for e in found)
+    assert all(e.display_path.startswith("Download/") for e in found)
 
 
 def test_pull_shared_export_writes_temp_file(monkeypatch, tmp_path):
@@ -178,7 +183,11 @@ def test_pull_shared_export_writes_temp_file(monkeypatch, tmp_path):
         calls.append(args)
         if args[1:] == ["devices", "-l"]:
             return subprocess.CompletedProcess(args, 0, stdout=SAMPLE_DEVICES, stderr="")
+        if "find" in args:
+            return subprocess.CompletedProcess(args, 0, stdout="", stderr="")
         if "ls" in args:
+            if args[-1] != "/sdcard/Download":
+                return subprocess.CompletedProcess(args, 0, stdout="", stderr="")
             return subprocess.CompletedProcess(args, 0, stdout="location.csv\n", stderr="")
         if "pull" in args:
             dest = Path(args[-1])
@@ -188,7 +197,10 @@ def test_pull_shared_export_writes_temp_file(monkeypatch, tmp_path):
 
     monkeypatch.setattr(device, "adb_path", lambda: "/usr/bin/adb")
     monkeypatch.setattr(device.subprocess, "run", fake_run)
-    local = device.pull_shared_export("emulator-5554", "location.csv")
+    local = device.pull_shared_export(
+        "emulator-5554",
+        remote_path="/sdcard/Download/location.csv",
+    )
     try:
         assert local.is_file() and local.read_text(encoding="utf-8").startswith("ts,")
         assert any("pull" in c for c in calls)

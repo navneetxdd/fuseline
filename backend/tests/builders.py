@@ -182,3 +182,12 @@ def adb_usagestats_dump(
     lines.append("configStatsService:")  # following, unrelated section
     lines.append("  nothing to see here")
     return "\n".join(lines) + "\n"
+
+
+def adb_location_dump(lat: float, lon: float, when_ms: int) -> str:
+    """Synthetic `adb shell dumpsys location` snippet with one fix."""
+    return (
+        "Location Manager State:\n"
+        "  User 0:\n"
+        f"    last location=Location[gps {lat},{lon} hAcc=12.0 vel=0.0 time={when_ms}]\n"
+    )

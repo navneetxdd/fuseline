@@ -1151,6 +1151,13 @@ progress {
   flex-wrap: wrap;
 }
 
+.device-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-left: auto;
+}
+
 .scan-dot {
   display: inline-block;
   width: 7px;

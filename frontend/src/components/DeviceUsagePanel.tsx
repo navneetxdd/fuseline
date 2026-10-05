@@ -1,6 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { type AdbDevice, type DeviceExport, type IngestResult, ApiError, api } from '../api/client'
+import {
+  type AdbDevice,
+  type DeviceBundleResult,
+  type DeviceExport,
+  type IngestResult,
+  ApiError,
+  api,
+} from '../api/client'
 import { formatCount } from '../lib/format'
 
 type Props = {
@@ -11,9 +18,8 @@ type Props = {
 const POLL_MS = 2000
 
 /**
- * Live device import: polls ADB for a connected phone, pulls dumpsys usagestats, and lists
- * ingestible exports from the public Download folder (Takeout JSON, GPX, History DB, etc.).
- * Private app data (Chrome profile DB under /data/data) still needs a manual file export or root.
+ * Live Android import over USB: dumpsys usagestats + location, deep scan of Download/Documents
+ * (nested Takeout, GPX, History copies), or one-click bundle. Private /data/data still needs export.
  */
 export function DeviceUsagePanel({ caseId, onImported }: Props) {
   const [open, setOpen] = useState(false)
@@ -22,6 +28,7 @@ export function DeviceUsagePanel({ caseId, onImported }: Props) {
   const [adbMissing, setAdbMissing] = useState<string | null>(null)
   const [pulling, setPulling] = useState(false)
   const [result, setResult] = useState<IngestResult | null>(null)
+  const [bundle, setBundle] = useState<DeviceBundleResult | null>(null)
   const [error, setError] = useState<string | null>(null)
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined)
 
@@ -63,6 +70,7 @@ export function DeviceUsagePanel({ caseId, onImported }: Props) {
     setPulling(true)
     setError(null)
     setResult(null)
+    setBundle(null)
     try {
       const r = await api.pullDeviceAppUsage(caseId, serial)
       setResult(r)
@@ -74,16 +82,68 @@ export function DeviceUsagePanel({ caseId, onImported }: Props) {
     }
   }
 
-  async function pullExport(serial: string, filename: string) {
+  async function pullLocation(serial: string) {
     setPulling(true)
     setError(null)
     setResult(null)
+    setBundle(null)
     try {
-      const r = await api.pullDeviceExport(caseId, serial, filename)
+      const r = await api.pullDeviceLocation(caseId, serial)
+      setResult(r)
+      onImported(r)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Location pull failed')
+    } finally {
+      setPulling(false)
+    }
+  }
+
+  async function pullExport(serial: string, file: DeviceExport) {
+    setPulling(true)
+    setError(null)
+    setResult(null)
+    setBundle(null)
+    try {
+      const r = await api.pullDeviceExport(caseId, serial, file.remote_path)
       setResult(r)
       onImported(r)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Pull failed')
+    } finally {
+      setPulling(false)
+    }
+  }
+
+  async function pullBundle(serial: string) {
+    setPulling(true)
+    setError(null)
+    setResult(null)
+    setBundle(null)
+    try {
+      const r = await api.pullDeviceBundle(caseId, serial)
+      setBundle(r)
+      if (r.total_events_added > 0) {
+        onImported({
+          artifact: {
+            id: '',
+            original_name: 'device bundle',
+            source_type: 'mixed',
+            parser: '',
+            sha256: '',
+            size_bytes: 0,
+            row_count: r.total_events_added,
+            skipped_rows: 0,
+            ingested_at: new Date().toISOString(),
+            notes: [],
+          },
+          events_added: r.total_events_added,
+          sessions_rebuilt: r.sessions_rebuilt,
+          findings: [],
+          duplicate: false,
+        })
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Bundle pull failed')
     } finally {
       setPulling(false)
     }
@@ -128,9 +188,17 @@ export function DeviceUsagePanel({ caseId, onImported }: Props) {
               ) : pulling ? (
                 <span className="scan-bar" aria-label="Reading from device" />
               ) : (
-                <button type="button" className="btn accent small" onClick={() => void pullUsage(d.serial)}>
-                  Pull app usage
-                </button>
+                <span className="device-actions">
+                  <button type="button" className="btn accent small" onClick={() => void pullBundle(d.serial)}>
+                    Acquire all available
+                  </button>
+                  <button type="button" className="btn secondary small" onClick={() => void pullUsage(d.serial)}>
+                    App usage
+                  </button>
+                  <button type="button" className="btn secondary small" onClick={() => void pullLocation(d.serial)}>
+                    Location dump
+                  </button>
+                </span>
               )}
             </li>
           ))}
@@ -139,15 +207,17 @@ export function DeviceUsagePanel({ caseId, onImported }: Props) {
 
       {ready && exports && exports.length > 0 && !pulling ? (
         <div className="device-exports">
-          <p className="muted small">Download folder exports (location / browsing files you copied onto the phone):</p>
+          <p className="muted small">
+            Shared storage (Download / Documents, including nested Takeout folders):
+          </p>
           <ul className="device-list">
             {exports.map((file) => (
-              <li key={file.name} className="device-row">
-                <span className="mono">{file.name}</span>
+              <li key={file.remote_path} className="device-row">
+                <span className="mono">{file.display_path}</span>
                 <button
                   type="button"
                   className="btn secondary small"
-                  onClick={() => void pullExport(ready.serial, file.name)}
+                  onClick={() => void pullExport(ready.serial, file)}
                 >
                   Pull &amp; ingest
                 </button>
@@ -155,6 +225,11 @@ export function DeviceUsagePanel({ caseId, onImported }: Props) {
             ))}
           </ul>
         </div>
+      ) : ready && exports && exports.length === 0 && !pulling ? (
+        <p className="muted small">
+          No supported exports on shared storage yet. Copy Takeout JSON, GPX, or a History DB into Download, or upload
+          from your PC.
+        </p>
       ) : null}
 
       {error ? <div className="error-box">{error}</div> : null}
@@ -162,6 +237,8 @@ export function DeviceUsagePanel({ caseId, onImported }: Props) {
         <p className="ok-text small">
           {result.duplicate ? (
             'Already pulled from this device (same data). Nothing added.'
+          ) : result.events_added === 0 ? (
+            'Pull completed but no timeline events were parsed (common for location on locked-down builds).'
           ) : (
             <>
               Imported {formatCount(result.events_added)} events ({result.artifact.source_type}). Open{' '}
@@ -170,22 +247,47 @@ export function DeviceUsagePanel({ caseId, onImported }: Props) {
           )}
         </p>
       ) : null}
+      {bundle ? (
+        <div className="device-bundle-summary">
+          <p className="ok-text small">
+            Bundle finished: {formatCount(bundle.total_events_added)} new events across{' '}
+            {bundle.items.filter((i) => i.ok).length} successful pull(s).
+          </p>
+          <ul className="muted small">
+            {bundle.items.map((item) => (
+              <li key={`${item.kind}-${item.label}`}>
+                {item.ok ? (
+                  <>
+                    {item.label}: {item.duplicate ? 'unchanged (duplicate)' : `+${formatCount(item.events_added)}`}
+                    {item.source_type ? ` (${item.source_type})` : ''}
+                  </>
+                ) : (
+                  <>
+                    {item.label}: failed — {item.error}
+                  </>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
 
       {!ready ? (
         <details className="formats">
           <summary>Phone not showing up?</summary>
           <ol>
             <li>
-              Fuseline bundles <span className="mono">adb</span> under{" "}
-              <span className="mono">tools/platform-tools/</span> (run{" "}
+              Fuseline bundles <span className="mono">adb</span> under{' '}
+              <span className="mono">tools/platform-tools/</span> (run{' '}
               <span className="mono">python scripts/ensure_platform_tools.py</span> once if missing)
             </li>
             <li>Settings → About phone → tap &quot;Build number&quot; 7 times to unlock Developer options</li>
             <li>Settings → Developer options → turn on USB debugging</li>
             <li>Connect via USB and accept the authorisation prompt on the phone screen</li>
             <li>
-              Live pulls: app usage via dumpsys, plus supported files from Download (Takeout JSON, GPX, CSV,
-              History). Private browser DBs under /data/data still need a manual export.
+              <strong>Acquire all available</strong> pulls app usage, a location dumpsys snapshot, and every supported
+              file under Download/Documents (including nested Google Takeout). Chrome&apos;s private profile DB still
+              requires exporting History to Download or uploading from a PC.
             </li>
           </ol>
         </details>

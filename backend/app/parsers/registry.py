@@ -3,6 +3,7 @@ from __future__ import annotations
 import sqlite3
 from pathlib import Path
 
+from app.parsers.adb_location import AdbLocationParser
 from app.parsers.adb_usagestats import AdbUsageStatsParser
 from app.parsers.app_usage import AppUsageParser
 from app.parsers.base import ArtifactParser, ParseContext, ParseResult
@@ -16,6 +17,7 @@ PARSERS: list[ArtifactParser] = [
     FirefoxPlacesParser(),
     AppUsageParser(),
     AdbUsageStatsParser(),
+    AdbLocationParser(),
     LocationParser(),
     PlasoParser(),
 ]
@@ -35,6 +37,11 @@ SUPPORTED_FORMATS = [
         "source": "location",
         "parser": "location",
         "label": "Location fixes (CSV, SQLite, GPX, Google Takeout Records.json)",
+    },
+    {
+        "source": "location",
+        "parser": "adb_location_dump",
+        "label": "adb shell dumpsys location (live device pull)",
     },
     {"source": "plaso", "parser": "plaso_timeline", "label": "Plaso psort output (L2TCSV or JSON lines)"},
 ]

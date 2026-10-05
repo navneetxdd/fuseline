@@ -186,7 +186,24 @@ class DeviceInfo(BaseModel):
 class DeviceExportInfo(BaseModel):
     name: str
     remote_path: str
+    display_path: str
     size_bytes: int | None = None
+
+
+class DeviceBundleItem(BaseModel):
+    kind: Literal["app_usage", "location", "export"]
+    label: str
+    ok: bool
+    events_added: int = 0
+    duplicate: bool = False
+    error: str | None = None
+    source_type: str | None = None
+
+
+class DeviceBundleResult(BaseModel):
+    items: list[DeviceBundleItem]
+    total_events_added: int
+    sessions_rebuilt: int
 
 
 class FormatInfo(BaseModel):

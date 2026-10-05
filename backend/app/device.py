@@ -37,13 +37,21 @@ EXPORT_SUFFIXES = (
     ".sqlite3",
 )
 EXPORT_EXACT_NAMES = {"history", "places.sqlite", "records.json"}
-SHARED_DOWNLOAD_DIRS = (
+# Public shared storage roots (no root). Subfolders included via `find` (Takeout, etc.).
+SCAN_ROOTS = (
     "/sdcard/Download",
     "/storage/emulated/0/Download",
+    "/sdcard/Documents",
+    "/storage/emulated/0/Documents",
 )
+SHARED_DOWNLOAD_DIRS = SCAN_ROOTS[:2]
 MAX_EXPORT_BYTES = 200 * 1024 * 1024
+MAX_EXPORT_LIST = 48
+MAX_FIND_DEPTH = 6
 LIST_TIMEOUT_SECONDS = 10
-PULL_TIMEOUT_SECONDS = 45
+FIND_TIMEOUT_SECONDS = 25
+PULL_TIMEOUT_SECONDS = 60
+LOCATION_DUMP_TIMEOUT_SECONDS = 30
 PLATFORM_TOOLS_URL = "https://developer.android.com/tools/releases/platform-tools"
 BUNDLED_DIR = PROJECT_ROOT / "tools" / "platform-tools"
 
@@ -69,10 +77,11 @@ class AdbDevice:
 
 @dataclass(frozen=True)
 class SharedExport:
-    """A file under the phone's public Download folder that Fuseline can ingest."""
+    """A supported evidence file on shared storage that Fuseline can pull without root."""
 
     name: str
     remote_path: str
+    display_path: str
     size_bytes: int | None = None
 
 
@@ -193,6 +202,12 @@ def pull_usagestats_text(serial: str) -> str:
     return _run(["-s", device.serial, "shell", "dumpsys", "usagestats"], PULL_TIMEOUT_SECONDS)
 
 
+def pull_location_text(serial: str) -> str:
+    """Raw `dumpsys location` text (last fixes / history where the OS exposes them)."""
+    device = _require_ready_device(serial)
+    return _run(["-s", device.serial, "shell", "dumpsys", "location"], LOCATION_DUMP_TIMEOUT_SECONDS)
+
+
 def _is_pullable_export_name(name: str) -> bool:
     if not name or not EXPORT_NAME_RE.match(name) or "/" in name or "\\" in name or ".." in name:
         return False
@@ -202,18 +217,36 @@ def _is_pullable_export_name(name: str) -> bool:
     return any(lower.endswith(suf) for suf in EXPORT_SUFFIXES)
 
 
-def list_shared_exports(serial: str) -> list[SharedExport]:
-    """List ingestible files in the phone's public Download folder (no root required)."""
-    device = _require_ready_device(serial)
+def _display_path(remote_path: str) -> str:
+    for prefix in ("/storage/emulated/0/", "/sdcard/"):
+        if remote_path.startswith(prefix):
+            return remote_path[len(prefix) :]
+    return remote_path
+
+
+def _is_safe_export_path(remote_path: str) -> bool:
+    if not remote_path or ".." in remote_path or "\0" in remote_path or remote_path.startswith("-"):
+        return False
+    if not any(remote_path == root or remote_path.startswith(f"{root}/") for root in SCAN_ROOTS):
+        return False
+    base = remote_path.rsplit("/", 1)[-1]
+    return _is_pullable_export_name(base)
+
+
+def _export_from_remote(remote_path: str) -> SharedExport:
+    name = remote_path.rsplit("/", 1)[-1]
+    return SharedExport(name=name, remote_path=remote_path, display_path=_display_path(remote_path))
+
+
+def _list_exports_shallow(serial: str, device: AdbDevice) -> dict[str, SharedExport]:
     found: dict[str, SharedExport] = {}
-    for folder in SHARED_DOWNLOAD_DIRS:
+    for folder in SCAN_ROOTS:
         try:
             listing = _run(["-s", device.serial, "shell", "ls", "-1", folder], LIST_TIMEOUT_SECONDS)
         except AdbDeviceError:
             continue
         for line in listing.splitlines():
             name = line.strip()
-            # `ls` sometimes prefixes with './' or returns "No such file or directory"
             if name.startswith("./"):
                 name = name[2:]
             if not name or name.lower().startswith("no such file") or name.endswith(":"):
@@ -221,22 +254,76 @@ def list_shared_exports(serial: str) -> list[SharedExport]:
             if not _is_pullable_export_name(name):
                 continue
             remote = f"{folder.rstrip('/')}/{name}"
-            found.setdefault(name, SharedExport(name=name, remote_path=remote))
-    return sorted(found.values(), key=lambda e: e.name.lower())
+            export = _export_from_remote(remote)
+            found.setdefault(export.remote_path, export)
+    return found
 
 
-def pull_shared_export(serial: str, name: str) -> Path:
-    """Pull one Download-folder file to a temp path. Caller must delete the returned path."""
-    if not _is_pullable_export_name(name):
-        raise AdbDeviceError("That file name is not allowed for device import.")
+def _list_exports_deep(serial: str, device: AdbDevice) -> dict[str, SharedExport]:
+    roots = " ".join(SCAN_ROOTS)
+    script = f"find {roots} -maxdepth {MAX_FIND_DEPTH} -type f 2>/dev/null"
+    try:
+        listing = _run(["-s", device.serial, "shell", script], FIND_TIMEOUT_SECONDS)
+    except AdbDeviceError:
+        return {}
+    found: dict[str, SharedExport] = {}
+    for line in listing.splitlines():
+        remote = line.strip()
+        if not remote or not _is_safe_export_path(remote):
+            continue
+        export = _export_from_remote(remote)
+        found.setdefault(export.remote_path, export)
+        if len(found) >= MAX_EXPORT_LIST:
+            break
+    return found
+
+
+def list_shared_exports(serial: str) -> list[SharedExport]:
+    """List ingestible files on shared storage (Download/Documents, nested Takeout, etc.)."""
     device = _require_ready_device(serial)
-    exports = {e.name: e for e in list_shared_exports(device.serial)}
-    export = exports.get(name)
-    if export is None:
-        raise AdbDeviceError("File not found in the phone Download folder (or not a supported type).")
+    found = _list_exports_deep(serial, device)
+    shallow = _list_exports_shallow(serial, device)
+    found = shallow if not found else {**shallow, **found}
+    ranked = sorted(
+        found.values(),
+        key=lambda e: (
+            0 if e.name.lower() == "records.json" else 1,
+            0 if "takeout" in e.display_path.lower() else 1,
+            e.display_path.lower(),
+        ),
+    )
+    return ranked[:MAX_EXPORT_LIST]
+
+
+def pull_shared_export(
+    serial: str,
+    name: str | None = None,
+    *,
+    remote_path: str | None = None,
+) -> Path:
+    """Pull one shared-storage file to a temp path. Caller must delete the returned path."""
+    device = _require_ready_device(serial)
+    export: SharedExport | None = None
+    if remote_path:
+        if not _is_safe_export_path(remote_path):
+            raise AdbDeviceError("That remote path is not allowed for device import.")
+        export = _export_from_remote(remote_path)
+    elif name:
+        if not _is_pullable_export_name(name):
+            raise AdbDeviceError("That file name is not allowed for device import.")
+        matches = [e for e in list_shared_exports(device.serial) if e.name == name]
+        if not matches:
+            raise AdbDeviceError("File not found on the phone (or not a supported type).")
+        if len(matches) > 1:
+            raise AdbDeviceError(
+                f"Multiple files named {name!r} on the device. Pull by full path from the export list."
+            )
+        export = matches[0]
+    else:
+        raise AdbDeviceError("Specify a file name or remote_path.")
 
     tmp_dir = Path(tempfile.mkdtemp(prefix="fuseline-adb-"))
-    local = tmp_dir / name
+    local = tmp_dir / export.name
     try:
         _run(["-s", device.serial, "pull", export.remote_path, str(local)], PULL_TIMEOUT_SECONDS)
     except AdbDeviceError:

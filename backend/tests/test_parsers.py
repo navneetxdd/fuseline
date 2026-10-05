@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 from builders import (
     BASE,
+    adb_location_dump,
     adb_usagestats_dump,
     app_usage_csv,
     app_usage_db,
@@ -19,6 +20,7 @@ from builders import (
     takeout,
 )
 
+from app.parsers.adb_location import AdbLocationParser
 from app.parsers.adb_usagestats import AdbUsageStatsParser
 from app.parsers.app_usage import AppUsageParser
 from app.parsers.base import ParseContext
@@ -444,3 +446,18 @@ def test_adb_usagestats_dump_uses_case_timezone_for_naive_times(tmp_path: Path):
     path.write_text(adb_usagestats_dump([("com.a", "MOVE_TO_FOREGROUND", BASE)]), encoding="utf-8")
     (event,) = AdbUsageStatsParser().parse(path, NY_CTX).records
     assert event.ts_utc == "2024-06-15T14:00:00.000Z" and event.ts_basis == "assumed"
+
+
+# --- adb location dump --------------------------------------------------------------------------
+
+
+def test_adb_location_dump_parses_fix(tmp_path: Path):
+    ms = int(BASE.timestamp() * 1000)
+    path = tmp_path / "loc.txt"
+    path.write_text(adb_location_dump(12.9716, 77.5946, ms), encoding="utf-8")
+    assert AdbLocationParser().sniff(path) > 0.8
+    assert detect_parser(path, preferred_source="location").name == "adb_location_dump"
+    (fix,) = AdbLocationParser().parse(path, UTC_CTX).records
+    assert fix.lat == pytest.approx(12.9716)
+    assert fix.lon == pytest.approx(77.5946)
+    assert fix.source == "location"

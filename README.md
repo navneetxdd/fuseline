@@ -115,7 +115,7 @@ The compose file publishes the port on loopback only: Fuseline has no login (see
 ## Application workflow
 
 1. **Cases** — enter a case name, examiner and the **device timezone** (used only for timestamps that carry no timezone), then *Create & acquire*.
-2. **Acquire** — drop real evidence files, or under **App usage** use *Detect device…* to pull live app-usage and Download-folder exports via project-local `adb` (`tools/platform-tools/`, installed by `scripts/ensure_platform_tools.py` / `run_dev`). *Verify integrity* re-hashes every stored copy and checks the audit chain.
+2. **Acquire** — drop real evidence files, or *Detect device…* on a USB-connected Android phone (debugging on, authorisation accepted): **Acquire all available** pulls app usage (`dumpsys usagestats`), a location snapshot (`dumpsys location`), and every supported file under Download/Documents (including nested Takeout). Project-local `adb` lives under `tools/platform-tools/` (`scripts/ensure_platform_tools.py` / `run_dev`). *Verify integrity* re-hashes every stored copy and checks the audit chain.
 3. **Timeline** — scroll to zoom, drag to pan (or drag the overview window); click a mark, a table row or a map point to inspect it. Click a proximity session to zoom to it and highlight its members on the chart and map. *Correlation…* changes how sessions are built.
 4. **Report** — review validation findings, sessions and the chain of custody; export HTML, CSV or JSON.
 
@@ -213,6 +213,12 @@ Interactive reference: http://127.0.0.1:8000/docs
 | GET | `/api/cases/{id}/report/html` | Self-contained HTML report |
 | GET | `/api/cases/{id}/report/csv` | CSV (`?raw=true` disables formula neutralisation) |
 | GET | `/api/cases/{id}/report/json` | Lossless JSON export incl. audit trail |
+| GET | `/api/devices` | USB-attached Android devices (`adb devices`) |
+| GET | `/api/devices/{serial}/exports` | Supported files on shared storage (Download/Documents) |
+| POST | `/api/cases/{id}/acquire/device/{serial}/app-usage` | Pull and ingest `dumpsys usagestats` |
+| POST | `/api/cases/{id}/acquire/device/{serial}/location` | Pull and ingest `dumpsys location` |
+| POST | `/api/cases/{id}/acquire/device/{serial}/export` | Pull one file by JSON body `{ "remote_path": "..." }` |
+| POST | `/api/cases/{id}/acquire/device/{serial}/bundle` | Pull usage, location, and all listed exports |
 
 ---
 
