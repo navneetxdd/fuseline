@@ -212,7 +212,6 @@ def build_plaso_sample(base: datetime) -> None:
         writer.writerows(rows)
 
 
-
 def main(argv: list[str] | None = None) -> int:
     FIXTURES.mkdir(parents=True, exist_ok=True)
     base = datetime(2024, 6, 15, 10, 0, 0, tzinfo=UTC)
