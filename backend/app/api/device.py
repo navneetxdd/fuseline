@@ -5,8 +5,6 @@ import tempfile
 from pathlib import Path
 from typing import Any, Literal
 
-BundleKind = Literal["app_usage", "location", "export"]
-
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
