@@ -16,6 +16,7 @@ function open() {
 
 beforeEach(() => {
   vi.useFakeTimers({ shouldAdvanceTime: true })
+  vi.spyOn(api, 'deviceExports').mockResolvedValue([])
 })
 
 afterEach(() => {
@@ -84,7 +85,7 @@ describe('DeviceUsagePanel', () => {
     fireEvent.click(button)
     expect(pull).toHaveBeenCalledWith(CASE_ID, 'emulator-5554')
     await waitFor(() => expect(onImported).toHaveBeenCalledOnce())
-    expect(await screen.findByText(/Imported 42 app-usage events/)).toBeInTheDocument()
+    expect(await screen.findByText(/Imported 42 events/)).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Timeline' })).toHaveAttribute('href', '/timeline')
   })
 
@@ -95,5 +96,37 @@ describe('DeviceUsagePanel', () => {
     open()
     fireEvent.click(await screen.findByRole('button', { name: 'Pull app usage' }))
     expect(await screen.findByText('adb shell dumpsys usagestats timed out')).toBeInTheDocument()
+  })
+
+  it('lists Download exports and pulls one through ingest', async () => {
+    vi.spyOn(api, 'devices').mockResolvedValue([
+      { serial: 'emulator-5554', state: 'device', model: 'Pixel_6', ready: true },
+    ])
+    vi.spyOn(api, 'deviceExports').mockResolvedValue([
+      { name: 'Records.json', remote_path: '/sdcard/Download/Records.json', size_bytes: null },
+    ])
+    const pullExport = vi.spyOn(api, 'pullDeviceExport').mockResolvedValue({
+      artifact: {
+        id: 'a2',
+        source_type: 'location',
+        original_name: 'Records.json',
+        sha256: 'y'.repeat(64),
+        ingested_at: '2024-06-15T10:00:00.000Z',
+        row_count: 3,
+        size_bytes: 50,
+        skipped_rows: 0,
+        parser: 'location',
+        notes: [],
+      },
+      events_added: 3,
+      sessions_rebuilt: 0,
+      findings: [],
+      duplicate: false,
+    })
+    renderPanel(<DeviceUsagePanel caseId={CASE_ID} onImported={vi.fn()} />)
+    open()
+    fireEvent.click(await screen.findByRole('button', { name: 'Pull & ingest' }))
+    expect(pullExport).toHaveBeenCalledWith(CASE_ID, 'emulator-5554', 'Records.json')
+    expect(await screen.findByText(/Imported 3 events/)).toBeInTheDocument()
   })
 })

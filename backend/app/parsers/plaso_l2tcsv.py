@@ -27,9 +27,16 @@ from app.timeutil import (
 )
 
 _UTC_NAMES = {"UTC", "Z", "GMT"}
-_BROWSING = re.compile(r"webhist|chrome|firefox|safari|browser|page_visited|places", re.IGNORECASE)
-_APP_USAGE = re.compile(r"app[_ :-]?usage|usagestats", re.IGNORECASE)
-_LOCATION = re.compile(r"\bgps\b|location|geo(?:location|json)?\b|latitude", re.IGNORECASE)
+# Label fields only (see classify docstring). Patterns cover common Plaso parser / source_short names.
+_BROWSING = re.compile(
+    r"webhist|chrome|chromium|firefox|mozilla|safari|edge|opera|browser|page_visited|places|webview",
+    re.IGNORECASE,
+)
+_APP_USAGE = re.compile(r"app[_ :-]?usage|usagestats|android_app_usage|android:app_usage", re.IGNORECASE)
+_LOCATION = re.compile(
+    r"\bgps\b|location|geo(?:location|json)?\b|latitude|longitude|\bgpx\b|fused.?location|maps\.google",
+    re.IGNORECASE,
+)
 _SNAKE = re.compile(r"[^a-z0-9:]+")
 
 CSV_MARKERS = {"desc", "message", "source", "short", "sourcetype"}
@@ -77,7 +84,7 @@ class PlasoParser:
             return 0.9 if has_time and markers & obj.keys() else 0.0
         header = csv_header(path)
         if header and "date" in header and "time" in header and CSV_MARKERS & set(header):
-            return 0.85
+            return 0.95
         return 0.0
 
     @staticmethod

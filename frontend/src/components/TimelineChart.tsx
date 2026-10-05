@@ -386,7 +386,7 @@ export function TimelineChart({
             <>
               <div className="tip-head">Proximity session · score {hover.session.score.toFixed(2)}</div>
               <div className="tip-title">{hover.session.summary}</div>
-              <div className="mono muted">{hover.session.event_count} events — click to focus</div>
+              <div className="mono muted">{hover.session.event_count} events. Click to focus</div>
             </>
           )}
         </div>

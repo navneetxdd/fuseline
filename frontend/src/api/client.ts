@@ -152,6 +152,12 @@ export type AdbDevice = {
   ready: boolean
 }
 
+export type DeviceExport = {
+  name: string
+  remote_path: string
+  size_bytes: number | null
+}
+
 export type ReportSummary = {
   case: Case
   artifacts: Artifact[]
@@ -247,10 +253,17 @@ export const api = {
   health: () => request<{ status: string; version: string }>('/api/health'),
   meta: () => request<Meta>('/api/meta'),
   devices: () => request<AdbDevice[]>('/api/devices'),
+  deviceExports: (serial: string) =>
+    request<DeviceExport[]>(`/api/devices/${encodeURIComponent(serial)}/exports`),
   pullDeviceAppUsage: (caseId: string, serial: string) =>
     request<IngestResult>(`/api/cases/${caseId}/acquire/device/${encodeURIComponent(serial)}/app-usage`, {
       method: 'POST',
     }),
+  pullDeviceExport: (caseId: string, serial: string, filename: string) =>
+    request<IngestResult>(
+      `/api/cases/${caseId}/acquire/device/${encodeURIComponent(serial)}/export/${encodeURIComponent(filename)}`,
+      { method: 'POST' },
+    ),
 
   listCases: () => request<Case[]>('/api/cases'),
   createCase: (body: CaseInput) => request<Case>('/api/cases', json('POST', body)),

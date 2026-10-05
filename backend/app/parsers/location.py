@@ -72,6 +72,13 @@ class LocationParser:
 
         header = csv_header(path)
         if header and _has_geo_cols(set(header)):
+            # psort L2TCSV can carry lat/lon columns; leave those files to PlasoParser.
+            if (
+                "date" in header
+                and "time" in header
+                and {"desc", "message", "source", "short", "sourcetype"} & set(header)
+            ):
+                return 0.0
             return 0.9
         return 0.0
 

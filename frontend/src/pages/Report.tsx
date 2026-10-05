@@ -154,7 +154,7 @@ function Report({ caseId }: { caseId: string }) {
             className="btn ghost small"
             disabled={!!exporting}
             onClick={() => void onExport('csv', true)}
-            title="Same data, without the spreadsheet-formula safeguard — only use this if you trust every cell and need pristine values"
+            title="Same data, without the spreadsheet-formula safeguard. Only use this if you trust every cell and need pristine values"
           >
             {exporting === 'csv-raw' ? 'Exporting raw CSV…' : 'Export raw CSV (unescaped)'}
           </button>

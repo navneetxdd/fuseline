@@ -17,12 +17,31 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
 from app.config import PROJECT_ROOT
 
 SERIAL_RE = re.compile(r"^[A-Za-z0-9._:-]{1,64}$")
+# Shared-storage basenames only (no path separators). Covers Takeout / GPX / history DBs examiners drop in Download.
+EXPORT_NAME_RE = re.compile(r"^[A-Za-z0-9._ ()\[\]-]{1,180}$")
+EXPORT_SUFFIXES = (
+    ".csv",
+    ".json",
+    ".gpx",
+    ".xml",
+    ".txt",
+    ".db",
+    ".sqlite",
+    ".sqlite3",
+)
+EXPORT_EXACT_NAMES = {"history", "places.sqlite", "records.json"}
+SHARED_DOWNLOAD_DIRS = (
+    "/sdcard/Download",
+    "/storage/emulated/0/Download",
+)
+MAX_EXPORT_BYTES = 200 * 1024 * 1024
 LIST_TIMEOUT_SECONDS = 10
 PULL_TIMEOUT_SECONDS = 45
 PLATFORM_TOOLS_URL = "https://developer.android.com/tools/releases/platform-tools"
@@ -46,6 +65,15 @@ class AdbDevice:
     @property
     def ready(self) -> bool:
         return self.state == "device"
+
+
+@dataclass(frozen=True)
+class SharedExport:
+    """A file under the phone's public Download folder that Fuseline can ingest."""
+
+    name: str
+    remote_path: str
+    size_bytes: int | None = None
 
 
 def _adb_name() -> str:
@@ -163,3 +191,67 @@ def pull_usagestats_text(serial: str) -> str:
     """Raw `dumpsys usagestats` text from the given, currently-connected, authorised device."""
     device = _require_ready_device(serial)
     return _run(["-s", device.serial, "shell", "dumpsys", "usagestats"], PULL_TIMEOUT_SECONDS)
+
+
+def _is_pullable_export_name(name: str) -> bool:
+    if not name or not EXPORT_NAME_RE.match(name) or "/" in name or "\\" in name or ".." in name:
+        return False
+    lower = name.lower()
+    if lower in EXPORT_EXACT_NAMES:
+        return True
+    return any(lower.endswith(suf) for suf in EXPORT_SUFFIXES)
+
+
+def list_shared_exports(serial: str) -> list[SharedExport]:
+    """List ingestible files in the phone's public Download folder (no root required)."""
+    device = _require_ready_device(serial)
+    found: dict[str, SharedExport] = {}
+    for folder in SHARED_DOWNLOAD_DIRS:
+        try:
+            listing = _run(["-s", device.serial, "shell", "ls", "-1", folder], LIST_TIMEOUT_SECONDS)
+        except AdbDeviceError:
+            continue
+        for line in listing.splitlines():
+            name = line.strip()
+            # `ls` sometimes prefixes with './' or returns "No such file or directory"
+            if name.startswith("./"):
+                name = name[2:]
+            if not name or name.lower().startswith("no such file") or name.endswith(":"):
+                continue
+            if not _is_pullable_export_name(name):
+                continue
+            remote = f"{folder.rstrip('/')}/{name}"
+            found.setdefault(name, SharedExport(name=name, remote_path=remote))
+    return sorted(found.values(), key=lambda e: e.name.lower())
+
+
+def pull_shared_export(serial: str, name: str) -> Path:
+    """Pull one Download-folder file to a temp path. Caller must delete the returned path."""
+    if not _is_pullable_export_name(name):
+        raise AdbDeviceError("That file name is not allowed for device import.")
+    device = _require_ready_device(serial)
+    exports = {e.name: e for e in list_shared_exports(device.serial)}
+    export = exports.get(name)
+    if export is None:
+        raise AdbDeviceError("File not found in the phone Download folder (or not a supported type).")
+
+    tmp_dir = Path(tempfile.mkdtemp(prefix="fuseline-adb-"))
+    local = tmp_dir / name
+    try:
+        _run(["-s", device.serial, "pull", export.remote_path, str(local)], PULL_TIMEOUT_SECONDS)
+    except AdbDeviceError:
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+        raise
+    if not local.is_file():
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+        raise AdbDeviceError("adb pull did not produce a local file.")
+    size = local.stat().st_size
+    if size <= 0:
+        local.unlink(missing_ok=True)
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+        raise AdbDeviceError("Pulled file is empty.")
+    if size > MAX_EXPORT_BYTES:
+        local.unlink(missing_ok=True)
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+        raise AdbDeviceError(f"Pulled file exceeds the {MAX_EXPORT_BYTES // (1024 * 1024)} MiB import limit.")
+    return local

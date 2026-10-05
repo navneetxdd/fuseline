@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import subprocess
+from pathlib import Path
 
 import pytest
 
@@ -138,3 +139,60 @@ def test_pull_calls_adb_with_the_verified_serial_and_no_shell(monkeypatch):
     assert calls[-1] == ["/usr/bin/adb", "-s", "emulator-5554", "shell", "dumpsys", "usagestats"]
     for call in calls:
         assert isinstance(call, list)  # never a shell string
+
+
+def test_is_pullable_export_name_rejects_traversal():
+    assert device._is_pullable_export_name("Records.json")
+    assert device._is_pullable_export_name("History")
+    assert device._is_pullable_export_name("track.gpx")
+    assert not device._is_pullable_export_name("../etc/passwd")
+    assert not device._is_pullable_export_name("evil.exe")
+    assert not device._is_pullable_export_name("a/b.csv")
+
+
+def test_list_shared_exports_filters_supported_names(monkeypatch):
+    def fake_run(args, **kwargs):
+        if args[1:] == ["devices", "-l"]:
+            return subprocess.CompletedProcess(args, 0, stdout=SAMPLE_DEVICES, stderr="")
+        if "ls" in args:
+            return subprocess.CompletedProcess(
+                args,
+                0,
+                stdout="Records.json\nphoto.jpg\nlocation.csv\n../nope\nHistory\n",
+                stderr="",
+            )
+        return subprocess.CompletedProcess(args, 1, stdout="", stderr="fail")
+
+    monkeypatch.setattr(device, "adb_path", lambda: "/usr/bin/adb")
+    monkeypatch.setattr(device.subprocess, "run", fake_run)
+    found = device.list_shared_exports("emulator-5554")
+    names = [e.name for e in found]
+    assert names == ["History", "location.csv", "Records.json"]
+    assert all("/sdcard/Download/" in e.remote_path or "/storage/emulated/0/Download/" in e.remote_path for e in found)
+
+
+def test_pull_shared_export_writes_temp_file(monkeypatch, tmp_path):
+    calls = []
+
+    def fake_run(args, **kwargs):
+        calls.append(args)
+        if args[1:] == ["devices", "-l"]:
+            return subprocess.CompletedProcess(args, 0, stdout=SAMPLE_DEVICES, stderr="")
+        if "ls" in args:
+            return subprocess.CompletedProcess(args, 0, stdout="location.csv\n", stderr="")
+        if "pull" in args:
+            dest = Path(args[-1])
+            dest.write_text("ts,lat,lon\n2024-06-15T10:00:00Z,1.0,2.0\n", encoding="utf-8")
+            return subprocess.CompletedProcess(args, 0, stdout="", stderr="")
+        return subprocess.CompletedProcess(args, 1, stdout="", stderr="unexpected")
+
+    monkeypatch.setattr(device, "adb_path", lambda: "/usr/bin/adb")
+    monkeypatch.setattr(device.subprocess, "run", fake_run)
+    local = device.pull_shared_export("emulator-5554", "location.csv")
+    try:
+        assert local.is_file() and local.read_text(encoding="utf-8").startswith("ts,")
+        assert any("pull" in c for c in calls)
+    finally:
+        parent = local.parent
+        local.unlink(missing_ok=True)
+        parent.rmdir()

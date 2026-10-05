@@ -94,3 +94,29 @@ def test_pull_app_usage_requires_a_valid_case(client, monkeypatch):
     assert r.status_code == 400
     r2 = client.post("/api/cases/479280c8-9ae9-49fe-8d25-2c7d749678bf/acquire/device/emulator-5554/app-usage")
     assert r2.status_code == 404
+
+
+def test_list_exports_endpoint(client, monkeypatch):
+    from app.device import SharedExport
+
+    monkeypatch.setattr(
+        device_api,
+        "list_shared_exports",
+        lambda serial: [SharedExport(name="Records.json", remote_path="/sdcard/Download/Records.json")],
+    )
+    r = client.get("/api/devices/emulator-5554/exports")
+    assert r.status_code == 200
+    assert r.json() == [{"name": "Records.json", "remote_path": "/sdcard/Download/Records.json", "size_bytes": None}]
+
+
+def test_pull_export_ingests_location_csv(client, case_id, monkeypatch, tmp_path):
+    export = tmp_path / "location.csv"
+    export.write_text("timestamp,latitude,longitude\n2024-06-15T10:00:00Z,12.97,77.59\n", encoding="utf-8")
+    monkeypatch.setattr(device_api, "pull_shared_export", lambda serial, name: export)
+
+    r = client.post(f"/api/cases/{case_id}/acquire/device/emulator-5554/export/location.csv")
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["events_added"] >= 1
+    assert body["artifact"]["source_type"] == "location"
+    assert not export.exists()  # cleaned up by the route

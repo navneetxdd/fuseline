@@ -147,7 +147,7 @@ export function OverviewBrush({ overview, lanes, bounds, view, onViewChange, tim
       </svg>
       <div className="brush-caption mono muted">
         <span>{formatDateTime(bounds.start, timeZone)}</span>
-        <span>{isFull ? 'showing everything — drag the window or scroll the chart to zoom' : label}</span>
+        <span>{isFull ? 'showing everything. Drag the window or scroll the chart to zoom' : label}</span>
         <span>{formatDateTime(bounds.end, timeZone)}</span>
       </div>
     </div>

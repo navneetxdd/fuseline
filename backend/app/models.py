@@ -190,6 +190,12 @@ class DeviceInfo(BaseModel):
     ready: bool
 
 
+class DeviceExportInfo(BaseModel):
+    name: str
+    remote_path: str
+    size_bytes: int | None = None
+
+
 class FormatInfo(BaseModel):
     source: str
     parser: str

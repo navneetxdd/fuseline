@@ -68,13 +68,13 @@ def test_case_crud_and_validation(client, make_case):
 
 def test_demo_pack_matches_documented_numbers(client, case_id, demo_dir):
     result = load_demo(client, case_id)
-    assert (len(result["artifacts"]), result["events_added"], result["sessions_rebuilt"]) == (4, 15, 4)
+    assert (len(result["artifacts"]), result["events_added"], result["sessions_rebuilt"]) == (4, 17, 4)
     case = client.get(f"/api/cases/{case_id}").json()
-    assert (case["event_count"], case["artifact_count"], case["session_count"]) == (15, 4, 4)
+    assert (case["event_count"], case["artifact_count"], case["session_count"]) == (17, 4, 4)
 
     again = load_demo(client, case_id)  # idempotent: everything is a duplicate
     assert again["events_added"] == 0 and len(again["artifacts"]) == 4
-    assert client.get(f"/api/cases/{case_id}").json()["event_count"] == 15
+    assert client.get(f"/api/cases/{case_id}").json()["event_count"] == 17
 
 
 def test_event_ids_are_deterministic_across_cases(client, make_case, demo_dir):
@@ -82,7 +82,7 @@ def test_event_ids_are_deterministic_across_cases(client, make_case, demo_dir):
     load_demo(client, first)
     load_demo(client, second)
     ids = lambda c: [e["id"] for e in client.get(f"/api/cases/{c}/timeline").json()["events"]]  # noqa: E731
-    assert ids(first) == ids(second) and len(ids(first)) == 15
+    assert ids(first) == ids(second) and len(ids(first)) == 17
 
 
 # --- regressions for defects found in the original release -------------------------------------
@@ -349,7 +349,7 @@ def test_validation_flags_disjoint_sources_and_single_source(client, case_id, up
 def test_reports_contain_provenance_and_exports_are_audited(client, case_id, demo_dir):
     load_demo(client, case_id)
     summary = client.get(f"/api/cases/{case_id}/report").json()
-    assert summary["event_count"] == 15 and summary["session_count"] == 4
+    assert summary["event_count"] == 17 and summary["session_count"] == 4
     assert summary["correlation"] == {"window_seconds": 300, "max_span_seconds": 1800, "min_sources": 2}
     assert summary["first_event_utc"] < summary["last_event_utc"]
 
@@ -359,12 +359,12 @@ def test_reports_contain_provenance_and_exports_are_audited(client, case_id, dem
     assert "<script" not in html
 
     payload = client.get(f"/api/cases/{case_id}/report/json").json()
-    assert payload["generator"]["name"] == "fuseline" and len(payload["events"]) == 15
+    assert payload["generator"]["name"] == "fuseline" and len(payload["events"]) == 17
     assert {e["action"] for e in payload["audit"]} >= {"case.create", "artifact.ingest", "demo.load", "report.export"}
 
     csv_text = client.get(f"/api/cases/{case_id}/report/csv").text
     rows = list(csv.DictReader(io.StringIO(csv_text)))
-    assert len(rows) == 15 and rows[0]["artifact_sha256"] and rows[0]["ts_basis"]
+    assert len(rows) == 17 and rows[0]["artifact_sha256"] and rows[0]["ts_basis"]
     exports = [a for a in client.get(f"/api/cases/{case_id}/audit").json() if a["action"] == "report.export"]
     assert {a["detail"]["kind"] for a in exports} >= {"html", "json", "csv"}
 

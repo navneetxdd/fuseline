@@ -265,7 +265,7 @@ function Workspace({ caseId, caseTimezone }: { caseId: string; caseTimezone: str
         </div>
         {truncated ? (
           <Callout tone="info">
-            {formatCount(data.total)} events in this window — too many to draw one by one. The chart shows density;
+            {formatCount(data.total)} events in this window. Too many to draw one by one. The chart shows density;
             zoom in (or use the brush above) to see individual events.
           </Callout>
         ) : null}

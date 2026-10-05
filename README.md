@@ -123,7 +123,7 @@ The compose file publishes the port on loopback only: Fuseline has no login (see
 ### Recommended walkthrough
 
 1. **Cases** → create a case → *Create & acquire*
-2. **Acquire** → *Load sample evidence* (15 events, 4 artifacts, 4 proximity sessions) → *Verify integrity*
+2. **Acquire** → *Load sample evidence* (17 events, 4 artifacts, 4 proximity sessions) → *Verify integrity*
 3. **Timeline** → click a session card → click a mark or a map point to inspect the event and its provenance
 4. **Report** → export HTML (and optionally CSV / JSON); note the chain of custody at the end of the HTML report
 
@@ -144,7 +144,7 @@ Formats are recognised from file **content** (SQLite schema, CSV header, XML/JSO
 
 Not supported (export to one of the formats above first): raw UsageStats protobuf files, Chromium WAL sidecars (upload a checkpointed `History`), iOS databases.
 
-Sample artifacts live in `samples/demo_case/` (regenerate with `python scripts/seed_demo.py`): `app_usage.db`, `History`, `location.csv`, `plaso_sample.l2t.csv` → 15 events, 4 artifacts, 4 proximity sessions.
+Sample artifacts live in `samples/demo_case/` (regenerate with `python scripts/seed_demo.py`): `app_usage.db`, `History`, `location.csv`, `plaso_sample.l2t.csv` → 17 events, 4 artifacts, 4 proximity sessions.
 
 ### Plaso
 

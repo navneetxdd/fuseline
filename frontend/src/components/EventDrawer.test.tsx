@@ -35,7 +35,7 @@ describe('EventDrawer', () => {
   it('flags assumed local time and names the assumed zone', () => {
     const event = makeEvent({ ts_basis: 'assumed', tz_assumed: 'Asia/Kolkata' })
     render(<EventDrawer event={event} artifacts={[]} timeZone="UTC" onClose={noop} />)
-    const basis = screen.getByText(/Assumed — the source had no timezone/)
+    const basis = screen.getByText(/Assumed: the source had no timezone/)
     expect(basis).toHaveTextContent('Asia/Kolkata')
     expect(basis).toHaveClass('warn-text')
   })

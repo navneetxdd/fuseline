@@ -58,7 +58,7 @@ function CaseFields({ value, onChange, zones, idPrefix }: FieldsProps) {
           <span className={zoneOk ? 'hint' : 'hint bad'}>
             {zoneOk
               ? 'Applied to timestamps that carry no timezone (marked “assumed” on each event).'
-              : 'Unknown timezone — use an IANA name such as Asia/Kolkata.'}
+              : 'Unknown timezone. Use an IANA name such as Asia/Kolkata.'}
           </span>
         </label>
       </div>

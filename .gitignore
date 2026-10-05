@@ -28,3 +28,20 @@ Thumbs.db
 tools/platform-tools/
 tools/platform-tools.zip
 !tools/.gitkeep
+graphify-out/
+
+# CTF / scratch artifacts at repo root (never commit)
+/workshop_flags/
+/yt_workshop/
+/ws_imgs/
+/thm.ovpn
+/bandit_solve.py
+/_*.py
+/_*.sh
+/_*.js
+/_*.json
+/_yt_*
+/yt_*.srt
+/yt_*.vtt
+/thumb_*.webp
+/laptop_*.png

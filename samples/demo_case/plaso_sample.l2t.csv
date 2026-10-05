@@ -1,2 +1,4 @@
-date,time,timezone,source,desc,message,URL
-2024-06-15,10:03:00,UTC,WEBHIST,Chrome History,Visited https://maps.google.com/search?q=cafe,https://maps.google.com/search?q=cafe
+date,time,timezone,source,sourcetype,desc,message,URL,package,latitude,longitude
+2024-06-15,10:03:00,UTC,WEBHIST,Chrome History,Chrome History,Visited https://maps.google.com/search?q=cafe,https://maps.google.com/search?q=cafe,,,
+2024-06-15,10:04:12,UTC,LOG,android:app_usage,Android App Usage,MOVE_TO_FOREGROUND com.whatsapp,,com.whatsapp,,
+2024-06-15,10:05:40,UTC,LOG,gps,GPS Fix,Location fix near cafe,,,12.971600,77.594600

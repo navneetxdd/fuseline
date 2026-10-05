@@ -22,8 +22,8 @@ const HINTS = [
 const SOURCE_META: Record<(typeof SOURCES)[number], { label: string; help: string }> = {
   location: { label: 'Location', help: 'CSV, SQLite, GPX, or a Google Takeout Records.json export' },
   browsing: { label: 'Browsing', help: 'Chromium/Edge History or Firefox places.sqlite' },
-  app_usage: { label: 'App usage', help: 'Android UsageStats — SQLite, CSV, XML, or a live device pull' },
-  plaso: { label: 'Plaso', help: 'Optional, for a full forensic image — psort L2TCSV or JSON lines' },
+  app_usage: { label: 'App usage', help: 'Android UsageStats: SQLite, CSV, XML, or a live device pull' },
+  plaso: { label: 'Plaso', help: 'Optional full forensic image: psort L2TCSV or JSON lines' },
 }
 
 type QueueItem = {
@@ -132,7 +132,7 @@ function Acquire({ caseId, onChanged }: { caseId: string; onChanged: () => Promi
       const result = await api.loadDemo(caseId)
       setMessage(
         result.events_added === 0
-          ? 'The sample pack is already loaded in this case (same SHA-256 hashes) — nothing added.'
+          ? 'The sample pack is already loaded in this case (same SHA-256 hashes). Nothing added.'
           : `Loaded sample evidence: ${result.events_added} events from ${result.artifacts.length} artifacts, ${result.sessions_rebuilt} proximity sessions.`,
       )
       setIntegrity(null)
@@ -190,8 +190,7 @@ function Acquire({ caseId, onChanged }: { caseId: string; onChanged: () => Promi
           <div>
             <h1>Acquire</h1>
             <p className="muted small">
-              Each file is hashed (SHA-256), stored read-only, and recognised by its <strong>content</strong> —
-              never its name. Open <Link to="/timeline">Timeline</Link> to inspect the events.
+              Each file is hashed (SHA-256), stored read-only, and recognised by its <strong>content</strong>, never its name. Open <Link to="/timeline">Timeline</Link> to inspect the events.
             </p>
           </div>
           <div className="row wrap-gap">
@@ -379,7 +378,7 @@ function QueueResult({ result }: { result: IngestResult }) {
   if (result.duplicate) {
     return (
       <span className="muted">
-        Already in this case (identical SHA-256 to <strong>{result.artifact.original_name}</strong>) — nothing
+        Already in this case (identical SHA-256 to <strong>{result.artifact.original_name}</strong>). Nothing
         added.
       </span>
     )

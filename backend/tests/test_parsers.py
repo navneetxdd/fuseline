@@ -49,7 +49,9 @@ def test_demo_samples_parse(demo_dir: Path):
     assert len(loc.records) == 3 and loc.records[0].lat is not None
 
     plaso = PlasoParser().parse(demo_dir / "plaso_sample.l2t.csv", UTC_CTX)
-    assert len(plaso.records) == 1 and plaso.records[0].source == "browsing"
+    assert len(plaso.records) == 3
+    assert {r.source for r in plaso.records} == {"browsing", "app_usage", "location"}
+    assert plaso.records[0].source == "browsing"
 
 
 @pytest.mark.parametrize(
@@ -339,8 +341,10 @@ def test_plaso_csv_honours_declared_timezone(tmp_path: Path):
 def test_plaso_lane_classification_ignores_message_text():
     assert classify("WEBHIST", "Chrome History") == "browsing"
     assert classify("chrome:history:page_visited", "sqlite/chrome_27_history") == "browsing"
+    assert classify("mozilla:places", "firefox_history") == "browsing"
     assert classify("android:app_usage", "android_app_usage") == "app_usage"
     assert classify("gps", "location") == "location"
+    assert classify("android_webview", "webview") == "browsing"
     assert classify("LOG", "syslog") == "plaso"
     assert classify(None, "") == "plaso"
 

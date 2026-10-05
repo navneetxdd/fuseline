@@ -84,7 +84,7 @@ export default function App() {
       <main id="main" className="main">
         {apiOk === false ? (
           <div className="error-box banner">
-            Backend unreachable — retrying. Start it with <span className="mono">scripts/run_dev.ps1</span> or{' '}
+            Backend unreachable. Retrying. Start it with <span className="mono">scripts/run_dev.ps1</span> or{' '}
             <span className="mono">uvicorn app.main:app --app-dir backend</span>.
           </div>
         ) : null}

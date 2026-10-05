@@ -13,9 +13,9 @@ type Props = {
 }
 
 const BASIS_TEXT: Record<TimeBasis, string> = {
-  absolute: 'Exact — the source stored an absolute time (epoch or UTC).',
+  absolute: 'Exact: the source stored an absolute time (epoch or UTC).',
   offset: 'Converted from a timestamp that carried an explicit UTC offset.',
-  assumed: 'Assumed — the source had no timezone, so it was interpreted as local time in',
+  assumed: 'Assumed: the source had no timezone, so it was interpreted as local time in',
 }
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
@@ -31,7 +31,7 @@ export function EventDrawer({ event, artifacts, timeZone, onClose }: Props) {
   if (!event) {
     return (
       <div className="drawer empty-drawer">
-        Select an event — a mark on the chart, a row below, or a point on the map — to inspect its provenance.
+        Select an event (chart mark, table row, or map point) to inspect its provenance.
       </div>
     )
   }
