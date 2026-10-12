@@ -211,28 +211,6 @@ function Workspace({ caseId, caseTimezone }: { caseId: string; caseTimezone: str
           </div>
         ) : null}
 
-        <div className="toolbar">
-          {present.map((s) => (
-            <label key={s} className="check-label">
-              <input
-                type="checkbox"
-                checked={enabled[s] ?? true}
-                onChange={(e) => setEnabled((prev) => ({ ...prev, [s]: e.target.checked }))}
-              />
-              <SourceChip source={s} />
-              <span className="mono muted">{formatCount(data.sourceCounts[s] ?? 0)}</span>
-            </label>
-          ))}
-          <input
-            type="search"
-            className="grow"
-            placeholder="Filter by title, package, URL or domain"
-            aria-label="Filter events"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-          />
-        </div>
-
         {activity && activity.event_count > 0 ? <ActivityReadout activity={activity} /> : null}
 
         {data.error ? <div className="error-box">{data.error}</div> : null}
@@ -261,7 +239,30 @@ function Workspace({ caseId, caseTimezone }: { caseId: string; caseTimezone: str
             </section>
           ) : null}
           <section className="panel">
-            <h2>{activeSession ? 'Session events' : 'Events'}</h2>
+            <div className="panel-head">
+              <h2>{activeSession ? 'Session events' : 'Events'}</h2>
+            </div>
+            <div className="toolbar">
+              {present.map((s) => (
+                <label key={s} className="check-label">
+                  <input
+                    type="checkbox"
+                    checked={enabled[s] ?? true}
+                    onChange={(e) => setEnabled((prev) => ({ ...prev, [s]: e.target.checked }))}
+                  />
+                  <SourceChip source={s} />
+                  <span className="mono muted">{formatCount(data.sourceCounts[s] ?? 0)}</span>
+                </label>
+              ))}
+              <input
+                type="search"
+                className="grow"
+                placeholder="Filter by title, package, URL or domain"
+                aria-label="Filter events"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+              />
+            </div>
             <EventTable
               events={tableEvents}
               total={tableTotal}
