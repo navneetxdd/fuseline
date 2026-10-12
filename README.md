@@ -1,72 +1,74 @@
 # Fuseline
 
-Correlate **location data**, **browsing history**, and **app usage logs** into a unified UTC forensic timeline. Fuseline surfaces **proximity sessions** where those sources coincide in time, with full artifact provenance and a tamper-evident chain of custody.
+Correlate location data, browsing history, and app usage into one UTC timeline. Where those sources fall close together, Fuseline draws a proximity session and keeps the hash of every file that produced it.
 
 Workflow: **Acquisition → Analysis → Validation → Report**
 
-![Timeline zoomed to a proximity session, with the location track and an inspected fix](docs/screenshots/timeline-session.png)
-
-| Service | URL (dev) | URL (single process / Docker) |
-|---------|-----------|-------------------------------|
+| | Development | Single process / Docker |
+|---|---|---|
 | UI | http://127.0.0.1:5173 | http://127.0.0.1:8000 |
 | API | http://127.0.0.1:8000 | http://127.0.0.1:8000 |
 | OpenAPI | http://127.0.0.1:8000/docs | http://127.0.0.1:8000/docs |
 
----
+## Contents
 
-## Problem statement
+1. [Application](#application)
+2. [Problem](#problem)
+3. [Run](#run)
+4. [Workflow](#workflow)
+5. [Evidence formats](#evidence-formats)
+6. [How correlation works](#how-correlation-works)
+7. [API](#api)
+8. [Configuration](#configuration)
+9. [Security](#security)
+10. [Repository](#repository)
+11. [Project report](#project-report)
+12. [Development](#development)
+13. [License](#license)
 
-> Correlate location data, browsing history, and app usage logs into a unified forensic timeline.
+## Application
+
+![Timeline zoomed to a proximity session, with the inspected location fix](docs/screenshots/timeline-session.png)
+
+Timeline zoomed to one proximity session. The selected fix shows its original timestamp, time basis, artifact, and hash.
+
+![Whole-case timeline in the dark theme](docs/screenshots/timeline-dark.png)
+
+The same case zoomed out. When the window holds too many events to draw one by one, the lanes switch to density.
+
+![HTML case report with counts and the activity overview](docs/screenshots/report-html.png)
+
+The HTML report written from a case: counts, source totals, and the activity overview. CSV and JSON exports are separate.
+
+**Acquisition.** A case stores the examiner, the device timezone, and its own SQLite file. Files are recognised by content. Each file is hashed with SHA-256, stored read-only, and checked again on verify. Rows that cannot be parsed are skipped and counted.
+
+**Analysis.** Location, browsing, and app usage sit on separate lanes. A session is a band across the lanes it contains. The location plot is drawn locally. Every event records whether its UTC time was absolute, offset, or assumed.
+
+**Validation and report.** Findings cover coverage, skipped rows, assumed time, gaps, sources that do not overlap, and dates outside the expected range. The HTML report is self-contained. The audit log is append-only and hash-chained, and the HTML report includes that chain.
+
+The interface has light, dark, and auto themes. Chart fonts are bundled with the app.
+
+## Problem
+
+Correlate location data, browsing history, and app usage logs into a unified forensic timeline.
 
 | | |
 |---|---|
-| **Objective** | Chronological view of mobile activity across multiple artifact sources |
-| **Stack** | Python, SQLite, optional Plaso import |
-| **Approach** | Extract timestamps → normalize to UTC → correlate events → unified timeline |
-| **Output** | Unified mobile forensic timeline with correlated sources |
+| Objective | A chronological view of Android activity across those sources |
+| Stack | Python, SQLite, optional Plaso import |
+| Approach | Extract timestamps, normalise to UTC, correlate events, present one timeline |
+| Output | One timeline, proximity sessions, and a case report |
 
----
-
-## Features
-
-**Acquisition**
-- Case management with examiner metadata, a device timezone, and per-case SQLite storage
-- Format detection by **content**, never by file name; upload several files at once
-- SHA-256 hashing, duplicate detection, **read-only** evidence copies, integrity re-verification
-- Rows that cannot be parsed are skipped **and counted** (with reasons), never silently dropped
-
-**Analysis**
-- Zoomable, pannable swimlane timeline (Location / Browsing / App usage) over a whole-case overview brush; handles tens of thousands of events by switching to density view when zoomed out
-- Proximity sessions drawn as bands across the lanes, with a location track (offline, no map tiles), spread radius, and per-event provenance
-- UTC or case-timezone display; every event records *how* its UTC time was derived (`absolute`, `offset`, or `assumed`)
-- Configurable correlation window, minimum sources, and maximum session length
-
-**Validation & reporting**
-- Validation findings: coverage, skipped rows, assumed timezones, gaps, sources that never overlap in time, implausible dates
-- Self-contained HTML report (inline SVG chart, no scripts), CSV and lossless JSON exports
-- Append-only, hash-chained audit log; the HTML report includes the chain of custody
-
-**Also**: light/dark themes, keyboard-accessible chart and tables, fonts bundled (no third-party requests).
-
-![Dark theme, whole-case overview](docs/screenshots/timeline-dark.png)
-
----
-
-## Quick start
+## Run
 
 ```bash
 git clone https://github.com/navneetxdd/fuseline.git
 cd fuseline
 ```
 
-### Dependencies
+Python 3.11 or newer. Node.js 22.12 or newer for the test runner. Node.js 20.19 is enough to run and build the UI.
 
-- Python 3.11+
-- Node.js 22.12+ (20.19+ is enough to run and build the UI; the test runner needs 22.12+)
-
-### Development (API auto-reload + Vite UI)
-
-**Windows (PowerShell)**
+**Windows**
 
 ```powershell
 .\scripts\run_dev.ps1
@@ -78,83 +80,72 @@ cd fuseline
 bash scripts/run_dev.sh
 ```
 
-The script creates `.venv`, installs dependencies, installs the UI, and starts both servers. Open http://127.0.0.1:5173. (If port 5173 is busy Vite picks the next one; Fuseline accepts any loopback origin.)
+The script creates `.venv`, installs dependencies, installs the UI, and starts both servers. Open http://127.0.0.1:5173. If that port is busy, Vite takes the next one. Fuseline accepts any loopback origin.
 
 <details>
 <summary>Manual setup</summary>
 
 ```powershell
 python -m venv .venv
-.\.venv\Scripts\pip install -r requirements-dev.txt     # Linux/macOS: .venv/bin/pip
-cd frontend; npm install; cd ..
+.\.venv\Scripts\pip install -r requirements-dev.txt
+cd frontend
+npm install
+cd ..
 .\.venv\Scripts\python -m uvicorn app.main:app --reload --app-dir backend
-cd frontend; npm run dev
+cd frontend
+npm run dev
 ```
 
 </details>
 
-### Single process (build the UI once, serve everything from FastAPI)
+**Single process.** The UI is built once and served by FastAPI.
 
 ```powershell
-.\scripts\run_prod.ps1            # Windows;  -Port 9000 to change the port, -Rebuild to force a UI rebuild
+.\scripts\run_prod.ps1
 ```
-```bash
-bash scripts/run_prod.sh          # Linux/macOS; optional port argument, REBUILD=1 to force a UI rebuild
-```
-
-### Docker
 
 ```bash
-docker compose up --build         # http://localhost:8000, data kept in the fuseline-data volume
+bash scripts/run_prod.sh
 ```
 
-The compose file publishes the port on loopback only: Fuseline has no login (see [Security](#security-model)).
+On Windows, `-Port 9000` changes the port and `-Rebuild` forces a UI rebuild. On Linux and macOS, pass the port as an argument and set `REBUILD=1` to rebuild the UI.
 
----
+**Docker**
 
-## Application workflow
+```bash
+docker compose up --build
+```
 
-1. **Cases** — enter a case name, examiner and the **device timezone** (used only for timestamps that carry no timezone), then *Create & acquire*.
-2. **Acquire** — drop real evidence files, or *Detect device…* on a USB-connected Android phone (debugging on, authorisation accepted): **Acquire all available** pulls app usage (`dumpsys usagestats`), a location snapshot (`dumpsys location`), and every supported file under Download/Documents (including nested Takeout). Project-local `adb` lives under `tools/platform-tools/` (`scripts/ensure_platform_tools.py` / `run_dev`). *Verify integrity* re-hashes every stored copy and checks the audit chain.
-3. **Timeline** — scroll to zoom, drag to pan (or drag the overview window); click a mark, a table row or a map point to inspect it. Click a proximity session to zoom to it and highlight its members on the chart and map. *Correlation…* changes how sessions are built.
-4. **Report** — review validation findings, sessions and the chain of custody; export HTML, CSV or JSON.
+The UI and API are both at http://127.0.0.1:8000. Case files stay in the `fuseline-data` volume. The compose file publishes the port on loopback only. See [Security](#security).
 
-### Recommended walkthrough
+## Workflow
 
-1. **Cases** → create a case → *Create & acquire*
-2. **Acquire** → upload evidence from the device / examiner export, or pull via USB → *Verify integrity*
-3. **Timeline** → click a session card → click a mark or a map point to inspect the event and its provenance
-4. **Report** → export HTML (and optionally CSV / JSON); note the chain of custody at the end of the HTML report
-
----
+1. **Cases.** Enter a case name, the examiner, and the device timezone. The timezone is used only for timestamps that carry no zone. Choose *Create & acquire*.
+2. **Acquire.** Drop evidence files, or choose *Detect device* on an Android phone with USB debugging authorised. *Acquire all available* pulls `dumpsys usagestats`, a `dumpsys location` snapshot when that text has timed coordinates, and supported files under Download and Documents, including a nested Takeout folder. Project-local `adb` is installed under `tools/platform-tools/` by `scripts/ensure_platform_tools.py` and by `run_dev`. *Verify integrity* re-hashes every stored copy and checks the audit chain.
+3. **Timeline.** Scroll to zoom and drag to pan, or drag the overview window. Select a mark, a table row, or a map point to inspect it. Select a proximity session to zoom to it. *Correlation* changes the window, the minimum number of sources, and the maximum session length.
+4. **Report.** Read the findings, the sessions, and the chain of custody. Export HTML, CSV, or JSON.
 
 ## Evidence formats
 
-Formats are recognised from file **content** (SQLite schema, CSV header, XML/JSON structure). The *source hint* on the Acquire page only narrows which parsers are tried.
+The parser is chosen from the file content: SQLite schema, CSV header, or XML/JSON structure. The source hint on Acquire only narrows which parsers are tried.
 
-| Source | Formats |
-|--------|---------|
-| Browsing | Chromium / Chrome / Edge `History` (visits with decoded transition types, search terms, downloads); Firefox / Firefox for Android `places.sqlite` |
-| App usage | Android UsageStats: SQLite (`events` + `packages`), ALEAPP-style CSV, UsageStats XML; event types decoded (foreground, background, screen on/off, …) |
-| Location | CSV or SQLite with latitude / longitude / time columns; **GPX**; **Google Takeout** `Records.json` |
-| Plaso (optional) | `psort` L2TCSV and JSON-lines output; honours the timezone declared per row; mapped onto the lanes above |
+| Source | Accepted input |
+|---|---|
+| Browsing | Chromium, Chrome, or Edge `History` (visits, transition types, search terms, downloads). Firefox or Firefox for Android `places.sqlite`. |
+| App usage | Android UsageStats SQLite (`events` and `packages`), ALEAPP-style CSV, UsageStats XML, and `adb dumpsys usagestats` text. Event numbers follow the Android `UsageEvents` constants. |
+| Location | CSV or SQLite with latitude, longitude, and time. GPX. Google Takeout `Records.json`. `adb dumpsys location` text when the dump contains timed fixes. |
+| Plaso (optional) | `psort` L2TCSV or JSON lines. The timezone on each row is kept. Rows are mapped onto the lanes above. |
 
-Not supported (export to one of the formats above first): raw UsageStats protobuf files, Chromium WAL sidecars (upload a checkpointed `History`), iOS databases.
-
-### Plaso
-
-Plaso is not required. To bring in a Plaso timeline:
+Plaso is not required. To import a Plaso timeline:
 
 ```bash
 log2timeline.py --storage-file evidence.plaso /path/to/extraction
-psort.py -o l2tcsv -w timeline.l2t.csv evidence.plaso        # or: -o json_line
+psort.py -o l2tcsv -w timeline.l2t.csv evidence.plaso
 ```
 
-Upload the resulting file on Acquire.
+`psort.py -o json_line` works as well. Upload the result on Acquire.
 
----
-
-## How it works
+## How correlation works
 
 ```
 Acquire → hash → detect format → parse (skips counted) → normalise to UTC → SQLite events
@@ -163,142 +154,127 @@ Acquire → hash → detect format → parse (skips counted) → normalise to UT
 UI / report exports ← FastAPI
 ```
 
-### Time handling
+### Time
 
-Every event stores its UTC time, the original source value, and a **basis**:
+Every event stores the UTC time used for sorting, the original source value, and a basis.
 
 | Basis | Meaning |
-|-------|---------|
-| `absolute` | Epoch numbers, or strings marked `Z`/UTC — exact |
-| `offset` | Strings with an explicit offset (e.g. `-05:00`), converted |
-| `assumed` | No timezone in the source; interpreted in the **case timezone** and flagged (`TZ_ASSUMED` finding) |
-
-Confirm the device timezone before relying on cross-source ordering of `assumed` events.
+|---|---|
+| `absolute` | The source was an epoch number, or a string already marked as UTC. |
+| `offset` | The source carried an explicit offset, such as `-05:00`, and was converted. |
+| `assumed` | The source had no zone. It was read in the case timezone and flagged (`TZ_ASSUMED`). |
 
 ### Proximity sessions
 
-Events are sorted by UTC time and chained into a cluster while each is within the **window** (default 300 s) of the previous one. A cluster becomes a session when it contains at least **2 distinct sources**; clusters longer than the **maximum length** (default 30 min) are split at their widest pauses. Every event belongs to at most one session, results are independent of input order, and session IDs are deterministic. Score = distinct sources + 0.5 if a location source is present + min(1, events/10). Sessions show *temporal coincidence*, not causation.
+Events are sorted by UTC time, then by event id. An event joins the current cluster when it is within the window of the previous event. The default window is 300 seconds. A cluster is kept when it contains at least two distinct sources. A cluster longer than 30 minutes is split at its widest gap. Each event is in at most one session. The same bytes and the same settings produce the same sessions.
+
+The score used to rank sessions is the number of distinct sources, plus 0.5 if a location source is present, plus the smaller of 1 and (event count / 10).
+
+A session id is a UUID version 5 of its member event ids, in order. An event id is a UUID version 5 of the artifact SHA-256 and the row index inside that artifact.
+
+If the cluster has coordinates, the session stores their centroid and the radius of those points about the centroid. The radius is the spread of the points in that session.
 
 ### Integrity
 
-- Uploads are hashed, copied, re-hashed, and the copy is made **read-only**.
-- Event IDs are deterministic (`sha256(artifact) + row`), so re-ingesting the same evidence elsewhere reproduces the same IDs.
-- The audit log chains each entry to the previous entry's hash. *Verify integrity* recomputes the chain and re-hashes the stored evidence.
-
----
+Uploads are hashed, copied, hashed again, and the copy is made read-only. The audit log stores the hash of the previous entry on each new entry. *Verify integrity* recomputes that chain and re-hashes the stored evidence.
 
 ## API
 
 Interactive reference: http://127.0.0.1:8000/docs
 
 | Method | Path | Purpose |
-|--------|------|---------|
-| GET | `/api/health`, `/api/meta` | Liveness; version, upload limit, supported formats |
-| GET / POST | `/api/cases` | List / create cases |
-| GET / PATCH / DELETE | `/api/cases/{id}` | Read / edit / delete a case |
-| POST | `/api/cases/{id}/acquire` | Upload an artifact (multipart: `file`, optional `source_hint`) |
+|---|---|---|
+| GET | `/api/health`, `/api/meta` | Liveness, version, upload limit, supported formats |
+| GET, POST | `/api/cases` | List or create cases |
+| GET, PATCH, DELETE | `/api/cases/{id}` | Read, edit, or delete a case |
+| POST | `/api/cases/{id}/acquire` | Upload an artifact (`file`, optional `source_hint`) |
 | GET | `/api/cases/{id}/artifacts` | Artifact inventory |
 | POST | `/api/cases/{id}/verify` | Re-hash stored evidence and verify the audit chain |
 | GET | `/api/cases/{id}/audit` | Chain-of-custody entries |
-| GET | `/api/cases/{id}/timeline` | Events; `source`, `q`, `start`, `end`, `offset`, `limit`, `order` (`total` and `has_more` are always returned) |
+| GET | `/api/cases/{id}/timeline` | Events. Query: `source`, `q`, `start`, `end`, `offset`, `limit`, `order`. `total` and `has_more` are always returned |
 | GET | `/api/cases/{id}/events/{event_id}` | One event |
-| GET | `/api/cases/{id}/overview` | Per-source counts in time buckets (for the overview and density view) |
-| GET | `/api/cases/{id}/locations` | Location fixes, evenly down-sampled |
+| GET | `/api/cases/{id}/overview` | Per-source counts in time buckets |
+| GET | `/api/cases/{id}/locations` | Location fixes, down-sampled for drawing |
 | GET | `/api/cases/{id}/sessions` | Proximity sessions |
 | GET | `/api/cases/{id}/sessions/params` | Correlation parameters in effect |
 | POST | `/api/cases/{id}/sessions/rebuild` | Rebuild with `window_seconds`, `max_span_seconds`, `min_sources` |
-| GET | `/api/cases/{id}/sessions/{session_id}/events` | A session's member events |
-| GET | `/api/cases/{id}/validation` | Validation findings (`?refresh=true` recomputes) |
+| GET | `/api/cases/{id}/sessions/{session_id}/events` | Events in one session |
+| GET | `/api/cases/{id}/validation` | Validation findings. `?refresh=true` recomputes them |
 | GET | `/api/cases/{id}/report` | Report summary (JSON) |
 | GET | `/api/cases/{id}/report/html` | Self-contained HTML report |
-| GET | `/api/cases/{id}/report/csv` | CSV (`?raw=true` disables formula neutralisation) |
-| GET | `/api/cases/{id}/report/json` | Lossless JSON export incl. audit trail |
-| GET | `/api/devices` | USB-attached Android devices (`adb devices`) |
-| GET | `/api/devices/{serial}/exports` | Supported files on shared storage (Download/Documents) |
+| GET | `/api/cases/{id}/report/csv` | CSV. `?raw=true` turns off formula neutralisation |
+| GET | `/api/cases/{id}/report/json` | JSON export, including the audit trail |
+| GET | `/api/devices` | USB-attached Android devices |
+| GET | `/api/devices/{serial}/exports` | Supported files on shared storage |
 | POST | `/api/cases/{id}/acquire/device/{serial}/app-usage` | Pull and ingest `dumpsys usagestats` |
 | POST | `/api/cases/{id}/acquire/device/{serial}/location` | Pull and ingest `dumpsys location` |
-| POST | `/api/cases/{id}/acquire/device/{serial}/export` | Pull one file by JSON body `{ "remote_path": "..." }` |
-| POST | `/api/cases/{id}/acquire/device/{serial}/bundle` | Pull usage, location, and all listed exports |
-
----
+| POST | `/api/cases/{id}/acquire/device/{serial}/export` | Pull one file. Body: `{ "remote_path": "..." }` |
+| POST | `/api/cases/{id}/acquire/device/{serial}/bundle` | Pull usage, location, and the listed exports |
 
 ## Configuration
 
-Environment variables (all optional):
-
 | Variable | Default | Purpose |
-|----------|---------|---------|
-| `FUSELINE_DATA_DIR` | `./data` | Case databases, evidence copies and the audit log |
+|---|---|---|
+| `FUSELINE_DATA_DIR` | `./data` | Case databases, evidence copies, and the audit log |
 | `FUSELINE_MAX_UPLOAD_MB` | `64` | Per-file upload limit |
-| `FUSELINE_ADB` | _(auto)_ | Absolute path to `adb` if you do not want the bundled `tools/platform-tools/` binary |
-| `FUSELINE_ALLOWED_HOSTS` | `127.0.0.1,localhost,[::1]` | `Host` values the API answers; `*` disables the check |
-| `FUSELINE_ALLOWED_ORIGINS` | *(empty)* | Extra browser origins allowed to make state-changing requests |
-| `FUSELINE_ALLOW_LOOPBACK_ORIGINS` | `1` | Trust any `http(s)://localhost:*` / `127.0.0.1:*` origin (e.g. the Vite dev server); `0` restricts to same-origin plus the list above |
-| `FUSELINE_API` | `http://127.0.0.1:8000` | API target of the Vite dev proxy (frontend only) |
+| `FUSELINE_ADB` | auto | Absolute path to `adb`, if you do not want `tools/platform-tools/` |
+| `FUSELINE_ALLOWED_HOSTS` | `127.0.0.1,localhost,[::1]` | `Host` values the API answers. `*` disables the check |
+| `FUSELINE_ALLOWED_ORIGINS` | empty | Extra browser origins allowed to change state |
+| `FUSELINE_ALLOW_LOOPBACK_ORIGINS` | `1` | Trust any loopback origin, such as the Vite dev server. `0` restricts the API to same-origin plus the list above |
+| `FUSELINE_API` | `http://127.0.0.1:8000` | API target of the Vite dev proxy |
 
----
+## Security
 
-## Security model
+Fuseline is a local examiner workstation. It has no login. Anything that can reach the port can read and delete cases, so the port stays on loopback.
 
-Fuseline is built for a **local examiner workstation**. It has no login, so anything that can reach the port can read and delete cases: keep it on loopback and do not expose it to a network. It is not multi-tenant hosting.
+- The API checks the `Host` header, and it checks `Origin` on requests that change state. CORS is not a wildcard and does not allow credentials.
+- Evidence strings in the HTML report are escaped. The response sends `Content-Security-Policy: default-src 'none'`.
+- CSV cells that would run as spreadsheet formulas are prefixed. The JSON export keeps the original text.
+- The UI shows evidence URLs defanged, with a Copy button, and strips control and bidirectional-override characters from titles.
+- SQLite evidence is opened read-only and `immutable`, with a query time budget. XML is parsed with `defusedxml`. Uploads are size-capped, file names are sanitised, and paths stay under the data directory.
+- API responses send `nosniff`, `no-referrer`, `X-Frame-Options: DENY`, and `Cache-Control: no-store`.
 
-Because evidence is untrusted input and the API has no login, the following are enforced:
-
-- **`Host` allow-list** (DNS-rebinding defence) and an **`Origin` check on state-changing requests** (cross-site form/`fetch` defence); CORS is not wildcard and never allows credentials.
-- **HTML report**: all evidence strings are escaped, and the response carries `Content-Security-Policy: default-src 'none'` (no scripts). Titles and package names in evidence can be attacker-controlled.
-- **CSV export** prefixes cells that would run as spreadsheet formulas; the JSON export is byte-faithful.
-- **The UI never makes an evidence URL clickable** (they are shown defanged with a Copy button) and strips control / bidirectional-override characters from event titles.
-- **Hostile files**: SQLite evidence is opened read-only and `immutable` with a query time budget and quoted identifiers; XML is parsed with `defusedxml` (entity bombs refused); uploads are size-capped, filenames sanitised, paths confined under the data directory.
-- Security headers (`nosniff`, `no-referrer`, `X-Frame-Options: DENY`, `Cache-Control: no-store` on API responses); the UI's CSP forbids inline scripts and third-party origins.
-
-Fuseline's parsers are a convenience for triage and correlation; corroborate significant findings with a second, validated forensic tool before relying on them.
-
----
-
-## Repository layout
+## Repository
 
 ```
-backend/app/         API routers, parsers, pipeline (normalise / correlate / validate), report templates
-backend/tests/       pytest suite + fixtures/evidence (test-only packed samples)
-frontend/src/        React UI: pages/, components/, lib/ (time & map maths), api/, state/
-scripts/             run_dev / run_prod (.ps1, .sh), ensure_platform_tools.py, seed_test_fixtures.py
-docs/                Problem statement, screenshots
-data/                Runtime case DBs, evidence copies, audit log (gitignored)
+backend/app/     API, parsers, pipeline, report templates
+backend/tests/   pytest suite and packed fixtures
+frontend/src/    React UI
+scripts/         run_dev, run_prod, ensure_platform_tools.py, build_project_report.py
+docs/            Project report and screenshots
+data/            Runtime case files (gitignored)
 ```
 
 ## Project report
-
-The capstone report is generated from this repository:
 
 ```bash
 python scripts/build_project_report.py
 ```
 
-That writes `docs/Fuseline-Capstone-Report.pdf`.
+That writes `docs/Fuseline-Capstone-Report.pdf`. It is the capstone write-up. It is separate from the HTML, CSV, and JSON export of a case.
 
 ## Development
 
 ```bash
-# backend
 pip install -r requirements-dev.txt
 pytest -q
-ruff check backend scripts && ruff format --check backend scripts
+ruff check backend scripts
+ruff format --check backend scripts
 mypy
+```
 
-# frontend
+```bash
 cd frontend
-npm run lint        # oxlint
+npm run lint
 npm run typecheck
 npm test
 npm run build
 ```
 
-CI (`.github/workflows/ci.yml`) runs all of the above on Python 3.11–3.13 and Node 22, and smoke-tests the Docker image.
+CI (`.github/workflows/ci.yml`) runs the same checks on Python 3.11–3.13 and Node 22, and smoke-tests the Docker image.
 
-## Acknowledgments
-
-Parser schemas informed by Plaso and ALEAPP. Related prior art: imcom/Android-forensic-timeline. No third-party forensic engines are vendored here.
+Parser layouts follow the public Android, Plaso, and ALEAPP references cited in the project report. No third-party forensic engine is shipped in this repository.
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT. See [LICENSE](LICENSE).
