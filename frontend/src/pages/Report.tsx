@@ -7,7 +7,7 @@ import {
   type TimelineEvent,
   api,
 } from '../api/client'
-import { ActivityReadout, checksWorthShowing, correlationSentence } from '../components/ActivityReadout'
+import { ActivityReadout, correlationSentence } from '../components/ActivityReadout'
 import { Callout } from '../components/Callout'
 import { NoCase } from '../components/NoCase'
 import { SourceChip } from '../components/SourceChip'
@@ -125,10 +125,13 @@ function Report({ caseId }: { caseId: string }) {
             {report ? (
               <p className="muted">
                 {report.case.name}
-                {report.case.examiner ? ` · ${report.case.examiner}` : ''} · device timezone {report.case.timezone}
+                {report.case.examiner ? ` · ${report.case.examiner}` : ''} · device timezone {report.case.timezone}.
+                The PDF uses the same seven sections. Section 4 is this case.
               </p>
             ) : (
-              <p className="muted">What this case contains, and a PDF of the same pages.</p>
+              <p className="muted">
+                Solution required, solution proposed, algorithm, outcome, conclusion, inference, and references.
+              </p>
             )}
           </div>
           <div className="row">
@@ -167,13 +170,22 @@ function Report({ caseId }: { caseId: string }) {
         </div>
 
         {error ? <div className="error-box">{error}</div> : null}
-        {report ? <ActivityReadout activity={report.activity} /> : null}
       </section>
 
-      {report && report.artifacts.length > 0 ? (
-        <section className="panel">
-          <h2>Acquired files</h2>
-          <div className="table-wrap">
+      {report
+        ? report.sections.map((section) => (
+            <section className="panel" key={section.id}>
+              <h2>{section.title}</h2>
+              {section.paragraphs.map((paragraph) => (
+                <p key={paragraph}>{paragraph}</p>
+              ))}
+              {section.id === 'outcome' ? (
+                <>
+                  <ActivityReadout activity={report.activity} hideBriefing />
+                  {report.artifacts.length > 0 ? (
+                    <>
+                      <h3>Acquired files</h3>
+                      <div className="table-wrap">
             <table className="data">
               <thead>
                 <tr>
@@ -204,13 +216,18 @@ function Report({ caseId }: { caseId: string }) {
                 ))}
               </tbody>
             </table>
-          </div>
-        </section>
-      ) : null}
+                      </div>
+                    </>
+                  ) : null}
+                </>
+              ) : null}
+            </section>
+          ))
+        : null}
 
-      {report && (report.session_count > 0 || Object.keys(report.activity.source_counts).length >= 2) ? (
+      {report && report.session_count > 0 ? (
       <section className="panel">
-        <h2>Correlation</h2>
+        <h2>Sessions</h2>
         <p>{correlationSentence(report.activity, report.correlation.window_seconds, report.session_count)}</p>
         {report.sessions.length > 0 ? (
           <div className="table-wrap">
@@ -285,21 +302,6 @@ function Report({ caseId }: { caseId: string }) {
         ) : null}
       </section>
       ) : null}
-
-      <section className="panel">
-        <h2>Checks</h2>
-        {report ? (
-          checksWorthShowing(report.findings).length === 0 ? (
-            <p>No skipped rows, clock warnings, or hash problems were recorded.</p>
-          ) : (
-            <ul className="check-list">
-              {checksWorthShowing(report.findings).map((f) => (
-                <li key={f.id}>{f.message}</li>
-              ))}
-            </ul>
-          )
-        ) : null}
-      </section>
 
       <section className="panel">
         <div className="panel-head">

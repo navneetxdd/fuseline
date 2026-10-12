@@ -348,11 +348,30 @@ def test_reports_contain_provenance_and_exports_are_audited(client, case_id, ing
     load_fixtures(client, case_id, ingest_fixtures)
     summary = client.get(f"/api/cases/{case_id}/report").json()
     assert summary["event_count"] == 17 and summary["session_count"] == 4
+    assert [section["title"] for section in summary["sections"]] == [
+        "1. Solution required",
+        "2. Solution proposed",
+        "3. Algorithm",
+        "4. Outcome",
+        "5. Conclusion",
+        "6. Inference",
+        "7. References",
+    ]
+    assert "https://csrc.nist.gov/pubs/sp/800/101/r1/final" in " ".join(summary["sections"][-1]["paragraphs"])
     assert summary["correlation"] == {"window_seconds": 300, "max_span_seconds": 1800, "min_sources": 2}
     assert summary["first_event_utc"] < summary["last_event_utc"]
 
     html = client.get(f"/api/cases/{case_id}/report/html").text
-    for needle in ("Chain of custody", "Proximity sessions", "SHA-256", "chromium_history", "Events CSV SHA-256"):
+    for needle in (
+        "1. Solution required",
+        "2. Solution proposed",
+        "7. References",
+        "Chain of custody",
+        "Proximity sessions",
+        "SHA-256",
+        "chromium_history",
+        "Events CSV SHA-256",
+    ):
         assert needle in html
     assert "<script" not in html
 

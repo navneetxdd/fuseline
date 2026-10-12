@@ -46,12 +46,21 @@
 <body>
 <main>
   <header>
-    <h1>Fuseline Forensic Report</h1>
+    <h1>Fuseline — Cyber Forensics Capstone Project</h1>
     <div class="meta">
       {{ case.name }} · examiner {{ case.examiner or "—" }} · case timezone {{ case.timezone }}<br />
       case {{ case.id }} · generated {{ generated_at }} · Fuseline {{ version }}
     </div>
   </header>
+
+  {% for section in sections if section.id in ["required", "proposed", "algorithm", "outcome"] %}
+  <section>
+    <h2>{{ section.title }}</h2>
+    {% for paragraph in section.paragraphs %}
+    <p>{{ paragraph }}</p>
+    {% endfor %}
+  </section>
+  {% endfor %}
 
   {% if case.notes %}
   <section>
@@ -200,18 +209,14 @@
     <p class="note">Each entry commits to the hash of the one before it; editing or deleting an entry breaks the chain.</p>
   </section>
 
+  {% for section in sections if section.id in ["conclusion", "inference", "references"] %}
   <section>
-    <h2>Methodology and limitations</h2>
-    <ol>
-      <li><strong>Acquisition</strong> — every artifact is SHA-256 hashed on receipt and stored read-only with its provenance.</li>
-      <li><strong>Normalisation</strong> — timestamps are converted to UTC. Epoch values and offsets are exact; timestamps with no
-          zone information are interpreted in the case timezone ({{ case.timezone }}) and flagged as <em>assumed</em>.</li>
-      <li><strong>Validation</strong> — source coverage, hash inventory, skipped rows, time gaps, cross-source overlap and implausible dates are checked.</li>
-      <li><strong>Correlation</strong> — proximity sessions show that events from different sources occurred close in time. They indicate
-          <em>temporal coincidence</em>, not causation; corroborate before drawing conclusions.</li>
-      <li><strong>Report</strong> — this document plus CSV/JSON exports. CSV cells that could execute as spreadsheet formulas are prefixed with an apostrophe; the JSON export is unmodified.</li>
-    </ol>
+    <h2>{{ section.title }}</h2>
+    {% for paragraph in section.paragraphs %}
+    <p>{{ paragraph }}</p>
+    {% endfor %}
   </section>
+  {% endfor %}
 </main>
 </body>
 </html>

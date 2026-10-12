@@ -13,6 +13,7 @@ from app.models import (
     AuditEntryOut,
     CaseOut,
     CorrelationParamsIn,
+    ReportSection,
     ReportSummary,
     SessionOut,
     ValidationFindingOut,
@@ -25,6 +26,7 @@ from app.report.build import (
     render_html_report,
 )
 from app.report.pdf import render_case_pdf
+from app.report.sections import report_sections
 
 router = APIRouter(prefix="/api/cases/{case_id}/report", tags=["report"])
 
@@ -59,6 +61,7 @@ def report_summary(case_id: str) -> ReportSummary:
         first_event_utc=data["first_event_utc"],
         last_event_utc=data["last_event_utc"],
         activity=ActivityOut(**data["activity"]),
+        sections=[ReportSection(**section) for section in report_sections(data)],
     )
 
 

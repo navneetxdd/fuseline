@@ -94,7 +94,13 @@ function quietNote(hours: HourCount[]): string | null {
   return `The blank stretch is hours with no events: ${runs.join('; ')}.`
 }
 
-export function ActivityReadout({ activity }: { activity: ActivitySummary }) {
+export function ActivityReadout({
+  activity,
+  hideBriefing = false,
+}: {
+  activity: ActivitySummary
+  hideBriefing?: boolean
+}) {
   const span =
     activity.first_event_utc && activity.last_event_utc
       ? `${formatDateTime(Date.parse(activity.first_event_utc))} to ${formatDateTime(Date.parse(activity.last_event_utc))}`
@@ -109,13 +115,13 @@ export function ActivityReadout({ activity }: { activity: ActivitySummary }) {
 
   return (
     <div className="activity-readout">
-      {activity.notes?.length ? (
+      {!hideBriefing && activity.notes?.length ? (
         <ul className="briefing">
           {activity.notes.map((note) => (
             <li key={note}>{note}</li>
           ))}
         </ul>
-      ) : (
+      ) : hideBriefing ? null : (
         <p className="activity-lead">
           {formatCount(activity.event_count)} events
           {span ? ` from ${span}` : ''}.

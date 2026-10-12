@@ -200,6 +200,12 @@ export type ActivitySummary = {
   notes: string[]
 }
 
+export type ReportSection = {
+  id: string
+  title: string
+  paragraphs: string[]
+}
+
 export type ReportSummary = {
   case: Case
   artifacts: Artifact[]
@@ -213,6 +219,7 @@ export type ReportSummary = {
   first_event_utc: string | null
   last_event_utc: string | null
   activity: ActivitySummary
+  sections: ReportSection[]
 }
 
 export type TimelineQuery = {

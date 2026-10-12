@@ -256,6 +256,12 @@ class MetaOut(BaseModel):
     formats: list[FormatInfo]
 
 
+class ReportSection(BaseModel):
+    id: str
+    title: str
+    paragraphs: list[str]
+
+
 class ReportSummary(BaseModel):
     case: CaseOut
     artifacts: list[ArtifactOut]
@@ -269,3 +275,4 @@ class ReportSummary(BaseModel):
     first_event_utc: str | None = None
     last_event_utc: str | None = None
     activity: ActivityOut
+    sections: list[ReportSection] = []

@@ -15,6 +15,7 @@ from app.api.deps import session_from_row
 from app.db import case_conn
 from app.pipeline.ingest import artifact_payload, get_case, get_correlation_params
 from app.report.activity import summarize_activity
+from app.report.sections import report_sections
 from app.security import csv_safe
 from app.timeutil import from_epoch_ms, nice_bucket_ms, now_iso, to_iso_utc
 
@@ -161,6 +162,7 @@ def render_html_report(case_id: str) -> str:
         generated_at=now_iso(),
         version=__version__,
         csv_sha256=hashlib.sha256(csv_text.encode("utf-8")).hexdigest(),
+        sections=report_sections(data),
     )
 
 
