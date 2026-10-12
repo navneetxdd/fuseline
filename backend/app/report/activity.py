@@ -7,7 +7,7 @@ stop is not given a duration.
 
 from __future__ import annotations
 
-from collections import Counter
+from collections import Counter, defaultdict
 
 from app.db import case_conn
 from app.timeutil import from_epoch_ms, to_iso_utc
@@ -18,6 +18,8 @@ MAX_FOREGROUND_MS = 6 * 60 * 60 * 1000
 TOP = 12
 HOUR_MS = 3_600_000
 MAX_FILLED_HOURS = 24 * 14
+HOUR_APP_LIMIT = 6
+HOUR_KIND_LIMIT = 5
 
 SOURCE_PLAIN = {
     "app_usage": "app usage",
@@ -135,25 +137,44 @@ def summarize_activity(case_id: str) -> dict:
             """,
             (HOUR_MS,),
         ).fetchall()
+        other_rows = conn.execute(
+            """
+            SELECT ts_ms, source, domain FROM events
+            WHERE source != 'app_usage'
+            """
+        ).fetchall()
 
     event_counts: Counter[str] = Counter()
     type_counts: Counter[str] = Counter()
     foreground_ms: Counter[str] = Counter()
+    hour_apps: dict[int, Counter[str]] = defaultdict(Counter)
+    hour_kinds: dict[int, Counter[str]] = defaultdict(Counter)
     open_at: dict[str, int] = {}
     for row in usage_rows:
         package = (row["package"] or "").strip()
         kind = row["event_type"] or "usage_event"
         type_counts[kind] += 1
+        ts_ms = int(row["ts_ms"])
+        hour_index = ts_ms // HOUR_MS
+        hour_kinds[hour_index][kind] += 1
+        if package:
+            hour_apps[hour_index][package] += 1
         if not package:
             continue
         event_counts[package] += 1
-        ts_ms = int(row["ts_ms"])
         if kind in FOREGROUND:
             open_at[package] = ts_ms
         elif kind in BACKGROUND and package in open_at:
             delta = ts_ms - open_at.pop(package)
             if 0 < delta <= MAX_FOREGROUND_MS:
                 foreground_ms[package] += delta
+    for row in other_rows:
+        hour_index = int(row["ts_ms"]) // HOUR_MS
+        source = row["source"] or "event"
+        hour_kinds[hour_index][source] += 1
+        domain = (row["domain"] or "").strip()
+        if source == "browsing" and domain:
+            hour_apps[hour_index][f"site:{domain}"] += 1
 
     ranked = sorted(event_counts, key=lambda pkg: (-foreground_ms[pkg], -event_counts[pkg], pkg))
     packages = [
@@ -172,7 +193,7 @@ def summarize_activity(case_id: str) -> dict:
     if rest > 0:
         event_types.append({"key": "other", "label": "Other recorded types", "count": rest})
 
-    hours = _hours(hour_rows, lo, hi, event_count)
+    hours = _hours(hour_rows, lo, hi, event_count, hour_apps, hour_kinds)
     return {
         "event_count": event_count,
         "source_counts": source_counts,
@@ -197,17 +218,57 @@ def summarize_activity(case_id: str) -> dict:
     }
 
 
-def _hours(hour_rows, lo, hi, event_count: int) -> list[dict]:
+def _hour_app_label(key: str) -> str:
+    if key.startswith("site:"):
+        return key[5:]
+    return _pkg_label(key)
+
+
+def _kind_label(key: str) -> str:
+    if key in SOURCE_PLAIN:
+        return SOURCE_PLAIN[key]
+    return _label(key)
+
+
+def _slices(counter: Counter[str], limit: int, labeler) -> list[dict]:
+    merged: Counter[str] = Counter()
+    for key, count in counter.items():
+        merged[labeler(key)] += count
+    ranked = merged.most_common()
+    head = ranked[:limit]
+    rest = sum(count for _, count in ranked[limit:])
+    rows = [{"label": label, "count": count} for label, count in head]
+    if rest:
+        rows.append({"label": "Other", "count": rest})
+    return rows
+
+
+def _hours(
+    hour_rows,
+    lo,
+    hi,
+    event_count: int,
+    hour_apps: dict[int, Counter[str]],
+    hour_kinds: dict[int, Counter[str]],
+) -> list[dict]:
     if not event_count or lo is None or hi is None:
         return []
     counts = {int(row["hour_index"]): int(row["c"]) for row in hour_rows}
     start = int(lo) // HOUR_MS
     end = int(hi) // HOUR_MS
     indexes = sorted(counts) if end - start > MAX_FILLED_HOURS else range(start, end + 1)
-    return [
-        {"start_utc": to_iso_utc(from_epoch_ms(index * HOUR_MS)), "count": counts.get(index, 0)}
-        for index in indexes
-    ]
+    rows = []
+    for index in indexes:
+        count = counts.get(index, 0)
+        rows.append(
+            {
+                "start_utc": to_iso_utc(from_epoch_ms(index * HOUR_MS)),
+                "count": count,
+                "apps": _slices(hour_apps.get(index, Counter()), HOUR_APP_LIMIT, _hour_app_label) if count else [],
+                "kinds": _slices(hour_kinds.get(index, Counter()), HOUR_KIND_LIMIT, _kind_label) if count else [],
+            }
+        )
+    return rows
 
 
 def _notes(

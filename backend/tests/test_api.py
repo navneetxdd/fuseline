@@ -366,6 +366,8 @@ def test_reports_contain_provenance_and_exports_are_audited(client, case_id, ing
     activity = client.get(f"/api/cases/{case_id}/activity").json()
     assert activity["event_count"] == 17
     assert activity["notes"] and activity["hours"]
+    busiest = max(activity["hours"], key=lambda hour: hour["count"])
+    assert busiest["kinds"] and sum(item["count"] for item in busiest["kinds"]) == busiest["count"]
     pdf = client.get(f"/api/cases/{case_id}/report/pdf")
     assert pdf.status_code == 200 and pdf.content.startswith(b"%PDF")
     exports = [a for a in client.get(f"/api/cases/{case_id}/audit").json() if a["action"] == "report.export"]

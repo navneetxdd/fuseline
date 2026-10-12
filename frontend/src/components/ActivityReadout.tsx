@@ -1,4 +1,5 @@
-import type { ActivitySummary } from '../api/client'
+import { useState } from 'react'
+import type { ActivitySummary, HourCount } from '../api/client'
 import { formatCount } from '../lib/format'
 import { formatDateTime, formatDuration } from '../lib/time'
 import { SOURCE_LABEL } from '../lib/sources'
@@ -32,6 +33,47 @@ export function correlationSentence(activity: ActivitySummary, windowSeconds: nu
   return `${formatCount(sessionCount)} session${sessionCount === 1 ? '' : 's'}, where at least two sources fall inside ${windowSeconds} seconds.`
 }
 
+function HourList({ title, rows }: { title: string; rows: { label: string; count: number }[] }) {
+  if (rows.length === 0) return null
+  return (
+    <div>
+      <h3 className="hour-list-title">{title}</h3>
+      <ul className="hour-list">
+        {rows.map((row) => (
+          <li key={`${title}-${row.label}`}>
+            <span>{row.label}</span>
+            <span className="mono">{formatCount(row.count)}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
+function quietNote(hours: HourCount[]): string | null {
+  const runs: string[] = []
+  let runStart: string | null = null
+  let runEnd: string | null = null
+  const close = () => {
+    if (runStart && runEnd) {
+      runs.push(`${formatDateTime(Date.parse(runStart))} through the hour starting ${formatDateTime(Date.parse(runEnd))}`)
+    }
+    runStart = null
+    runEnd = null
+  }
+  for (const hour of hours) {
+    if (hour.count === 0) {
+      if (!runStart) runStart = hour.start_utc
+      runEnd = hour.start_utc
+    } else {
+      close()
+    }
+  }
+  close()
+  if (runs.length === 0) return null
+  return `The blank stretch is hours with no events: ${runs.join('; ')}.`
+}
+
 export function ActivityReadout({ activity }: { activity: ActivitySummary }) {
   const span =
     activity.first_event_utc && activity.last_event_utc
@@ -40,6 +82,10 @@ export function ActivityReadout({ activity }: { activity: ActivitySummary }) {
 
   const hours = activity.hours ?? []
   const peak = hours.reduce((max, hour) => Math.max(max, hour.count), 0)
+  const busiest = hours.reduce<HourCount | null>((best, hour) => (hour.count > (best?.count ?? -1) ? hour : best), null)
+  const [picked, setPicked] = useState<string | null>(null)
+  const selected = hours.find((hour) => hour.start_utc === picked) ?? busiest
+  const gap = quietNote(hours)
 
   return (
     <div className="activity-readout">
@@ -61,21 +107,39 @@ export function ActivityReadout({ activity }: { activity: ActivitySummary }) {
           ))}
         </p>
       )}
-      {hours.length > 1 && peak > 0 ? (
+      {hours.length > 1 && peak > 0 && selected ? (
         <figure className="hour-figure">
-          <figcaption>Events per hour (UTC)</figcaption>
-          <div className="hour-strip" role="img" aria-label={`Events per hour, peak ${formatCount(peak)}`}>
+          <figcaption>Events per hour (UTC). Select a bar to see which apps and record types it contains.</figcaption>
+          <div className="hour-strip" role="group" aria-label={`Events per hour, peak ${formatCount(peak)}`}>
             {hours.map((hour) => (
-              <span
+              <button
                 key={hour.start_utc}
-                style={{ height: `${Math.max(hour.count > 0 ? 8 : 0, (hour.count / peak) * 100)}%` }}
-                title={`${formatDateTime(Date.parse(hour.start_utc))} · ${formatCount(hour.count)} events`}
-              />
+                type="button"
+                aria-pressed={hour.start_utc === selected.start_utc}
+                aria-label={`${formatDateTime(Date.parse(hour.start_utc))}, ${formatCount(hour.count)} events`}
+                onClick={() => setPicked(hour.start_utc)}
+              >
+                <i style={{ height: `${Math.max(hour.count > 0 ? 8 : 0, (hour.count / peak) * 100)}%` }} />
+              </button>
             ))}
           </div>
           <div className="hour-axis">
             <span>{formatDateTime(Date.parse(hours[0].start_utc))}</span>
             <span>{formatDateTime(Date.parse(hours[hours.length - 1].start_utc))}</span>
+          </div>
+          {gap ? <p className="muted small hour-gap">{gap}</p> : null}
+          <div className="hour-detail">
+            <p className="hour-detail-title">
+              {formatDateTime(Date.parse(selected.start_utc))} · {formatCount(selected.count)} events
+            </p>
+            {selected.count === 0 ? (
+              <p className="muted small">Nothing was recorded in this hour.</p>
+            ) : (
+              <div className="hour-detail-grid">
+                <HourList title="Apps" rows={selected.apps ?? []} />
+                <HourList title="Record types" rows={selected.kinds ?? []} />
+              </div>
+            )}
           </div>
         </figure>
       ) : null}

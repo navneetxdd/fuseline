@@ -178,7 +178,14 @@ export type PackageActivity = {
   foreground_ms: number
 }
 
-export type HourCount = { start_utc: string; count: number }
+export type HourSlice = { label: string; count: number }
+
+export type HourCount = {
+  start_utc: string
+  count: number
+  apps: HourSlice[]
+  kinds: HourSlice[]
+}
 
 export type ActivitySummary = {
   event_count: number

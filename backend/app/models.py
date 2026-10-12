@@ -123,9 +123,16 @@ class PackageActivity(BaseModel):
     foreground_ms: int
 
 
+class HourSlice(BaseModel):
+    label: str
+    count: int
+
+
 class HourCount(BaseModel):
     start_utc: str
     count: int
+    apps: list[HourSlice] = []
+    kinds: list[HourSlice] = []
 
 
 class ActivityOut(BaseModel):

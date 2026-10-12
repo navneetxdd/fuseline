@@ -1093,11 +1093,73 @@ progress {
   border-bottom: 1px solid var(--line-strong);
 }
 
-.hour-strip span {
+.hour-strip button {
   flex: 1 1 0;
   min-width: 2px;
-  background: var(--accent, #c45c16);
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  display: flex;
+  align-items: flex-end;
+  cursor: pointer;
+}
+
+.hour-strip button i {
   display: block;
+  width: 100%;
+  background: var(--accent, #c45c16);
+}
+
+.hour-strip button[aria-pressed='true'] i {
+  outline: 1px solid var(--ink);
+  outline-offset: 1px;
+}
+
+.hour-gap {
+  margin: 0.35rem 0 0;
+}
+
+.hour-detail {
+  margin-top: 0.65rem;
+}
+
+.hour-detail-title {
+  margin: 0 0 0.35rem;
+  font-weight: 600;
+}
+
+.hour-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem 1.5rem;
+}
+
+.hour-list-title {
+  margin: 0 0 0.25rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.hour-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.hour-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.15rem 0;
+  border-top: 1px solid var(--line);
+  font-size: 0.82rem;
+}
+
+@media (max-width: 720px) {
+  .hour-detail-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .hour-axis {
