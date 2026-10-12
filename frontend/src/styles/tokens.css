@@ -38,26 +38,26 @@
 
 :root[data-theme='dark'] {
   color-scheme: dark;
-  --paper: #0d1116;
-  --surface: #12171d;
-  --surface-2: #171d24;
-  --surface-3: #1c232b;
-  --ink: #e7ebef;
-  --muted: #8b96a3;
-  --line: #262e37;
-  --line-strong: #3a4552;
+  --paper: #000000;
+  --surface: #000000;
+  --surface-2: #000000;
+  --surface-3: #141414;
+  --ink: #f2f2f2;
+  --muted: #a3a3a3;
+  --line: #262626;
+  --line-strong: #3d3d3d;
   --accent: #6f96f5;
   --accent-text: #9bb8fa;
   --accent-strong: #86aefd;
-  --accent-soft: #1a2440;
+  --accent-soft: #141414;
   --teal: #59c2cb;
   --pass: #5ec288;
-  --pass-soft: #16281e;
+  --pass-soft: #041208;
   --warn: #e0a34e;
-  --warn-soft: #332510;
+  --warn-soft: #120c04;
   --fail: #ef7676;
-  --fail-soft: #391a1a;
-  --info-soft: #1a222c;
+  --fail-soft: #140606;
+  --info-soft: #0a0a0a;
   --lane-location: #4bb0bd;
   --lane-browsing: #8ea0d8;
   --lane-app: #e0a34e;
@@ -840,6 +840,14 @@ table.selectable tbody tr.row-selected {
 
 .dialog::backdrop {
   background: rgba(8, 11, 15, 0.5);
+}
+
+:root[data-theme='dark'] .dialog {
+  box-shadow: none;
+}
+
+:root[data-theme='dark'] .dialog::backdrop {
+  background: rgba(0, 0, 0, 0.72);
 }
 
 .dialog h2 {
