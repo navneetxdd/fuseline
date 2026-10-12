@@ -8,6 +8,7 @@ stop is not given a duration.
 from __future__ import annotations
 
 from collections import Counter, defaultdict
+from datetime import datetime, timedelta
 
 from app.db import case_conn
 from app.timeutil import from_epoch_ms, to_iso_utc
@@ -83,6 +84,14 @@ def _fmt_duration(ms: int) -> str:
 
 def _clock(iso: str) -> str:
     return iso.replace("T", " ").replace(".000", "").replace("Z", " UTC")
+
+
+def _hour_window(start_iso: str) -> str:
+    start = datetime.fromisoformat(start_iso.replace("Z", "+00:00"))
+    end = start + timedelta(hours=1)
+    if start.date() == end.date():
+        return f"{start:%Y-%m-%d %H:%M} to {end:%H:%M} UTC"
+    return f"{start:%Y-%m-%d %H:%M} to {end:%Y-%m-%d %H:%M} UTC"
 
 
 def _when(ms: int) -> str:
@@ -320,8 +329,7 @@ def _notes(
     if hours:
         peak = max(hours, key=lambda item: item["count"])
         if peak["count"]:
-            started = _clock(peak["start_utc"])
-            notes.append(f"The busiest hour starts at {started} with {peak['count']:,} events.")
+            notes.append(f"The busiest hour is {_hour_window(peak['start_utc'])}, with {peak['count']:,} events.")
     if len(source_counts) < 2:
         names = [SOURCE_PLAIN.get(name, name.replace("_", " ")) for name in sorted(source_counts)]
         only = names[0] if names else "nothing"

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import type { ActivitySummary, HourCount } from '../api/client'
 import { formatCount } from '../lib/format'
-import { formatDateTime, formatDuration } from '../lib/time'
+import { formatDateTime, formatDuration, formatTimeOfDay } from '../lib/time'
 import { SOURCE_LABEL } from '../lib/sources'
 
 const CHECKS_WORTH_SHOWING = new Set([
@@ -50,13 +50,33 @@ function HourList({ title, rows }: { title: string; rows: { label: string; count
   )
 }
 
+const HOUR_MS = 60 * 60 * 1000
+
+function dayLabel(ms: number): string {
+  return formatDateTime(ms).slice(0, 10)
+}
+
+function clockLabel(ms: number): string {
+  return formatTimeOfDay(ms, 'UTC', false)
+}
+
+function rangeLabel(startMs: number, endMs: number): string {
+  if (dayLabel(startMs) === dayLabel(endMs)) return `${dayLabel(startMs)} ${clockLabel(startMs)}–${clockLabel(endMs)}`
+  return `${dayLabel(startMs)} ${clockLabel(startMs)}–${dayLabel(endMs)} ${clockLabel(endMs)}`
+}
+
+function hourWindow(startIso: string): string {
+  const start = Date.parse(startIso)
+  return rangeLabel(start, start + HOUR_MS)
+}
+
 function quietNote(hours: HourCount[]): string | null {
   const runs: string[] = []
   let runStart: string | null = null
   let runEnd: string | null = null
   const close = () => {
     if (runStart && runEnd) {
-      runs.push(`${formatDateTime(Date.parse(runStart))} through the hour starting ${formatDateTime(Date.parse(runEnd))}`)
+      runs.push(rangeLabel(Date.parse(runStart), Date.parse(runEnd) + HOUR_MS))
     }
     runStart = null
     runEnd = null
@@ -116,7 +136,7 @@ export function ActivityReadout({ activity }: { activity: ActivitySummary }) {
                 key={hour.start_utc}
                 type="button"
                 aria-pressed={hour.start_utc === selected.start_utc}
-                aria-label={`${formatDateTime(Date.parse(hour.start_utc))}, ${formatCount(hour.count)} events`}
+                aria-label={`${hourWindow(hour.start_utc)}, ${formatCount(hour.count)} events`}
                 onClick={() => setPicked(hour.start_utc)}
               >
                 <i style={{ height: `${Math.max(hour.count > 0 ? 8 : 0, (hour.count / peak) * 100)}%` }} />
@@ -124,13 +144,15 @@ export function ActivityReadout({ activity }: { activity: ActivitySummary }) {
             ))}
           </div>
           <div className="hour-axis">
-            <span>{formatDateTime(Date.parse(hours[0].start_utc))}</span>
-            <span>{formatDateTime(Date.parse(hours[hours.length - 1].start_utc))}</span>
+            <span>{`${dayLabel(Date.parse(hours[0].start_utc))} ${clockLabel(Date.parse(hours[0].start_utc))}`}</span>
+            <span>
+              {`${dayLabel(Date.parse(hours[hours.length - 1].start_utc) + HOUR_MS)} ${clockLabel(Date.parse(hours[hours.length - 1].start_utc) + HOUR_MS)}`}
+            </span>
           </div>
           {gap ? <p className="muted small hour-gap">{gap}</p> : null}
           <div className="hour-detail">
             <p className="hour-detail-title">
-              {formatDateTime(Date.parse(selected.start_utc))} · {formatCount(selected.count)} events
+              {hourWindow(selected.start_utc)} · {formatCount(selected.count)} events
             </p>
             {selected.count === 0 ? (
               <p className="muted small">Nothing was recorded in this hour.</p>
