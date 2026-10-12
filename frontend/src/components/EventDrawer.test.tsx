@@ -8,7 +8,7 @@ const noop = () => undefined
 describe('EventDrawer', () => {
   it('prompts when nothing is selected', () => {
     render(<EventDrawer event={null} artifacts={[]} timeZone="UTC" onClose={noop} />)
-    expect(screen.getByText(/Select an event/)).toBeInTheDocument()
+    expect(screen.getByText(/Select a row/)).toBeInTheDocument()
   })
 
   it('never turns an evidence URL into a link, and defangs it', () => {
