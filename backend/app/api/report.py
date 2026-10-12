@@ -8,6 +8,7 @@ from fastapi.responses import HTMLResponse, PlainTextResponse, Response
 from app import audit
 from app.api.deps import require_case_id
 from app.models import (
+    ActivityOut,
     ArtifactOut,
     AuditEntryOut,
     CaseOut,
@@ -23,6 +24,7 @@ from app.report.build import (
     gather_report_data,
     render_html_report,
 )
+from app.report.pdf import render_case_pdf
 
 router = APIRouter(prefix="/api/cases/{case_id}/report", tags=["report"])
 
@@ -30,12 +32,13 @@ router = APIRouter(prefix="/api/cases/{case_id}/report", tags=["report"])
 REPORT_CSP = "default-src 'none'; style-src 'unsafe-inline'; img-src data:; base-uri 'none'; form-action 'none'"
 
 
-def _record_export(case_id: str, kind: str, content: str, actor: str) -> None:
+def _record_export(case_id: str, kind: str, content: str | bytes, actor: str) -> None:
+    raw = content if isinstance(content, bytes) else content.encode("utf-8")
     audit.record(
         "report.export",
         case_id=case_id,
         actor=actor,
-        detail={"kind": kind, "sha256": hashlib.sha256(content.encode("utf-8")).hexdigest(), "bytes": len(content)},
+        detail={"kind": kind, "sha256": hashlib.sha256(raw).hexdigest(), "bytes": len(raw)},
     )
 
 
@@ -55,6 +58,20 @@ def report_summary(case_id: str) -> ReportSummary:
         audit=[AuditEntryOut(**a) for a in data["audit"]],
         first_event_utc=data["first_event_utc"],
         last_event_utc=data["last_event_utc"],
+        activity=ActivityOut(**data["activity"]),
+    )
+
+
+@router.get("/pdf")
+def report_pdf(case_id: str) -> Response:
+    case_id = require_case_id(case_id)
+    content = render_case_pdf(case_id)
+    _record_export(case_id, "pdf", content, get_case(case_id)["examiner"])
+    name = case_id[:8]
+    return Response(
+        content=content,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="fuseline_{name}.pdf"'},
     )
 
 

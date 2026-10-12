@@ -167,20 +167,21 @@ h3 {
 
 .brand {
   display: flex;
-  align-items: baseline;
-  gap: 0.5rem;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.brand-mark {
+  display: block;
+  width: 22px;
+  height: 22px;
+  flex: 0 0 auto;
 }
 
 .brand-name {
   font-weight: 600;
   letter-spacing: -0.02em;
   font-size: 1rem;
-}
-
-.brand-sub {
-  font-family: var(--font-mono);
-  font-size: 0.68rem;
-  color: var(--muted);
 }
 
 .nav {
@@ -938,9 +939,22 @@ progress {
 /* ---------- Source cards (Acquire) ---------- */
 .source-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 0.75rem;
   margin-top: 0.85rem;
+  align-items: start;
+}
+
+@media (max-width: 1180px) {
+  .source-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 720px) {
+  .source-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .source-card {
@@ -954,9 +968,10 @@ progress {
 }
 
 .source-card-head {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.5rem;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: start;
+  gap: 0.45rem 0.5rem;
 }
 
 .source-card-head .dot {
@@ -975,29 +990,26 @@ progress {
 }
 
 .source-card-title p {
-  margin: 0.1rem 0 0;
+  margin: 0.15rem 0 0;
+  min-height: 2.5em;
 }
 
 .source-card-status {
-  flex: 0 0 auto;
-  text-align: right;
+  grid-column: 1 / -1;
+  text-align: left;
 }
 
 .source-card-actions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.5rem;
+  display: block;
 }
 
 .dropzone.compact {
-  flex: 1;
-  min-width: 160px;
+  width: 100%;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 0.5rem;
-  padding: 0.4rem 0.6rem;
+  padding: 0.45rem 0.6rem;
   text-align: left;
 }
 
@@ -1038,6 +1050,124 @@ progress {
   list-style: none;
   margin: 0.35rem 0 0;
   padding: 0;
+  max-height: 7.5rem;
+  overflow: auto;
+}
+
+.activity-lead {
+  margin: 0 0 0.75rem;
+}
+
+.briefing {
+  margin: 0 0 0.85rem;
+  padding-left: 1.15rem;
+}
+
+.briefing li + li {
+  margin-top: 0.35rem;
+}
+
+.hour-figure {
+  margin: 0 0 0.9rem;
+}
+
+.hour-figure figcaption {
+  font-size: 0.78rem;
+  font-weight: 600;
+  margin-bottom: 0.35rem;
+}
+
+.hour-strip {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 4.5rem;
+  border-bottom: 1px solid var(--line-strong);
+}
+
+.hour-strip span {
+  flex: 1 1 0;
+  min-width: 2px;
+  background: var(--accent, #c45c16);
+  display: block;
+}
+
+.hour-axis {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-top: 0.25rem;
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+.activity-readout table.data {
+  width: 100%;
+  table-layout: fixed;
+}
+
+.activity-readout th.num,
+.activity-readout td.num {
+  width: 6.5rem;
+}
+
+.activity-readout caption {
+  caption-side: top;
+  text-align: left;
+  font-weight: 600;
+  margin-bottom: 0.35rem;
+}
+
+.type-pills {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0.75rem 0 0;
+  padding: 0;
+}
+
+.type-pills li {
+  display: flex;
+  gap: 0.45rem;
+  align-items: baseline;
+  border: 1px solid var(--line);
+  padding: 0.25rem 0.5rem;
+  font-size: 0.82rem;
+}
+
+.acquired-files {
+  margin-top: 0.9rem;
+}
+
+.acquired-files h2 {
+  margin: 0 0 0.4rem;
+  font-size: 0.95rem;
+}
+
+.phone-acquire {
+  margin-top: 0.85rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid var(--line);
+}
+
+.phone-title {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.phone-acquire > .row {
+  justify-content: space-between;
+  align-items: center;
+}
+
+.check-list {
+  margin: 0;
+  padding-left: 1.1rem;
+}
+
+.check-list li + li {
+  margin-top: 0.35rem;
 }
 
 .source-tree-item {
@@ -1066,6 +1196,19 @@ progress {
   display: flex;
   flex-direction: column;
   gap: 0.1rem;
+}
+
+.file-line {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.file-line .cell-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .hash-row {

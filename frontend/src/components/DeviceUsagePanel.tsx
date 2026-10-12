@@ -151,9 +151,15 @@ export function DeviceUsagePanel({ caseId, onImported }: Props) {
 
   if (!open) {
     return (
-      <button type="button" className="btn secondary small" onClick={() => setOpen(true)}>
-        Detect device…
-      </button>
+      <div className="row">
+        <div>
+          <h2 className="phone-title">Android phone</h2>
+          <p className="muted small">USB debugging pulls usage stats, a location snapshot, and files in Download and Documents.</p>
+        </div>
+        <button type="button" className="btn secondary small" onClick={() => setOpen(true)}>
+          Detect device…
+        </button>
+      </div>
     )
   }
 

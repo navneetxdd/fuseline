@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
-import { type Artifact, type Finding, type IngestResult, type IntegrityResult, type Meta, api } from '../api/client'
+import { type Artifact, type IngestResult, type IntegrityResult, type Meta, api } from '../api/client'
 import { Callout } from '../components/Callout'
 import { DeviceUsagePanel } from '../components/DeviceUsagePanel'
-import { FindingsTable } from '../components/FindingsTable'
 import { NoCase } from '../components/NoCase'
 import { SourceCard } from '../components/SourceCard'
 import { SourceChip } from '../components/SourceChip'
-import { formatBytes, formatCount } from '../lib/format'
+import { CopyButton } from '../components/CopyButton'
+import { formatBytes, formatCount, shortHash } from '../lib/format'
+import { formatDateTime } from '../lib/time'
 import { SOURCES } from '../lib/sources'
 import { useCase } from '../state/CaseContext'
 
@@ -20,10 +20,10 @@ const HINTS = [
 ]
 
 const SOURCE_META: Record<(typeof SOURCES)[number], { label: string; help: string }> = {
-  location: { label: 'Location', help: 'CSV, SQLite, GPX, or a Google Takeout Records.json export' },
-  browsing: { label: 'Browsing', help: 'Chromium/Edge History or Firefox places.sqlite' },
-  app_usage: { label: 'App usage', help: 'Android UsageStats: SQLite, CSV, XML, or a live device pull' },
-  plaso: { label: 'Plaso', help: 'Optional full forensic image: psort L2TCSV or JSON lines' },
+  location: { label: 'Location', help: 'GPS track, GPX, or Takeout Records.json' },
+  browsing: { label: 'Browsing', help: 'Chrome, Edge, or Firefox history' },
+  app_usage: { label: 'App usage', help: 'UsageStats file, or a phone over USB' },
+  plaso: { label: 'Plaso', help: 'psort L2TCSV or JSON lines' },
 }
 
 type QueueItem = {
@@ -44,7 +44,6 @@ export function AcquirePage() {
 
 function Acquire({ caseId, onChanged }: { caseId: string; onChanged: () => Promise<void> }) {
   const [artifacts, setArtifacts] = useState<Artifact[]>([])
-  const [findings, setFindings] = useState<Finding[]>([])
   const [meta, setMeta] = useState<Meta | null>(null)
   const [bulkHint, setBulkHint] = useState('auto')
   const [dragOverCard, setDragOverCard] = useState<string | null>(null)
@@ -54,16 +53,13 @@ function Acquire({ caseId, onChanged }: { caseId: string; onChanged: () => Promi
   const [error, setError] = useState<string | null>(null)
   const [integrity, setIntegrity] = useState<IntegrityResult | null>(null)
   const [verifying, setVerifying] = useState(false)
-  const [revalidating, setRevalidating] = useState(false)
 
   const pending = useRef<{ id: string; file: File; hint: string }[]>([])
   const draining = useRef(false)
 
   const refresh = useCallback(async () => {
     try {
-      const [arts, vals] = await Promise.all([api.listArtifacts(caseId), api.validation(caseId)])
-      setArtifacts(arts)
-      setFindings(vals)
+      setArtifacts(await api.listArtifacts(caseId))
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load artifacts')
     }
@@ -136,18 +132,6 @@ function Acquire({ caseId, onChanged }: { caseId: string; onChanged: () => Promi
     }
   }
 
-  async function revalidate() {
-    setRevalidating(true)
-    setError(null)
-    try {
-      setFindings(await api.validation(caseId, true))
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Validation failed')
-    } finally {
-      setRevalidating(false)
-    }
-  }
-
   const byCategory = useMemo(() => {
     const map = new Map<string, Artifact[]>()
     for (const s of SOURCES) map.set(s, [])
@@ -169,15 +153,8 @@ function Acquire({ caseId, onChanged }: { caseId: string; onChanged: () => Promi
           <div>
             <h1>Acquire</h1>
             <p className="muted small">
-              Each file is hashed (SHA-256), stored read-only, and recognised by its <strong>content</strong>, never its name. Open <Link to="/timeline">Timeline</Link> to inspect the events.
+              Each file is hashed with SHA-256, stored read-only, and recognised from its content.
             </p>
-          </div>
-          <div className="row wrap-gap">
-            {artifacts.length > 0 ? (
-              <Link to="/timeline" className="btn accent small">
-                Open Timeline
-              </Link>
-            ) : null}
           </div>
         </div>
 
@@ -206,20 +183,73 @@ function Acquire({ caseId, onChanged }: { caseId: string; onChanged: () => Promi
                 }}
                 onChoose={(files) => enqueue(files.slice(0, 1), source)}
                 disabled={busy}
-              >
-                {source === 'app_usage' ? (
-                  <DeviceUsagePanel
-                    caseId={caseId}
-                    onImported={() => {
-                      setIntegrity(null)
-                      void refresh()
-                      void onChanged()
-                    }}
-                  />
-                ) : null}
-              </SourceCard>
+              />
             )
           })}
+        </div>
+
+        {artifacts.length > 0 ? (
+          <div className="acquired-files">
+            <h2>Acquired files</h2>
+            <div className="table-wrap">
+              <table className="data">
+                <thead>
+                  <tr>
+                    <th scope="col">Source</th>
+                    <th scope="col">File</th>
+                    <th scope="col" className="num">
+                      Events
+                    </th>
+                    <th scope="col">Ingested</th>
+                    <th scope="col">SHA-256</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {artifacts.map((artifact) => {
+                    const status = integrityBySource.get(artifact.id)
+                    return (
+                      <tr key={artifact.id}>
+                        <td>
+                          <SourceChip source={artifact.source_type} />
+                        </td>
+                        <td>
+                          {artifact.original_name}
+                          <div className="cell-sub">
+                            {formatBytes(artifact.size_bytes)}
+                            {artifact.skipped_rows > 0 ? ` · ${formatCount(artifact.skipped_rows)} skipped` : ''}
+                          </div>
+                        </td>
+                        <td className="num mono">{formatCount(artifact.row_count)}</td>
+                        <td className="mono nowrap">{formatDateTime(Date.parse(artifact.ingested_at))}</td>
+                        <td>
+                          <div className="hash-row">
+                            <code className="hash-text mono" title={artifact.sha256}>
+                              {shortHash(artifact.sha256, 10, 8)}
+                            </code>
+                            <CopyButton value={artifact.sha256} label="Copy hash" className="copy-hash" />
+                            {status ? (
+                              <span className={`sev sev-${status === 'ok' ? 'pass' : 'fail'}`}>{status}</span>
+                            ) : null}
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ) : null}
+
+        <div className="phone-acquire">
+          <DeviceUsagePanel
+            caseId={caseId}
+            onImported={() => {
+              setIntegrity(null)
+              void refresh()
+              void onChanged()
+            }}
+          />
         </div>
 
         {queue.length > 0 ? (
@@ -323,29 +353,6 @@ function Acquire({ caseId, onChanged }: { caseId: string; onChanged: () => Promi
         )}
       </section>
 
-      <section className="panel">
-        <div className="panel-head">
-          <h2>Validation snapshot</h2>
-          <button
-            type="button"
-            className="btn secondary small"
-            disabled={revalidating}
-            onClick={() => void revalidate()}
-            title="Recompute every check now, instead of using the results cached from the last ingest"
-          >
-            {revalidating ? 'Recomputing…' : 'Recompute'}
-          </button>
-        </div>
-        <FindingsTable findings={findings} empty="Validation runs after ingest." />
-        <div className="row">
-          <Link className="btn" to="/timeline">
-            Open timeline
-          </Link>
-          <Link className="btn secondary" to="/report">
-            Open report
-          </Link>
-        </div>
-      </section>
     </div>
   )
 }

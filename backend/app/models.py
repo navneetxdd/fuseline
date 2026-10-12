@@ -110,6 +110,37 @@ class ValidationFindingOut(BaseModel):
     created_at: str
 
 
+class CountItem(BaseModel):
+    key: str
+    label: str
+    count: int
+
+
+class PackageActivity(BaseModel):
+    package: str
+    label: str
+    events: int
+    foreground_ms: int
+
+
+class HourCount(BaseModel):
+    start_utc: str
+    count: int
+
+
+class ActivityOut(BaseModel):
+    event_count: int
+    source_counts: dict[str, int]
+    first_event_utc: str | None = None
+    last_event_utc: str | None = None
+    packages: list[PackageActivity]
+    event_types: list[CountItem]
+    domains: list[CountItem]
+    location_fixes: int
+    hours: list[HourCount] = []
+    notes: list[str] = []
+
+
 class TimelineResponse(BaseModel):
     case_id: str
     events: list[EventOut]
@@ -230,3 +261,4 @@ class ReportSummary(BaseModel):
     audit: list[AuditEntryOut]
     first_event_utc: str | None = None
     last_event_utc: str | None = None
+    activity: ActivityOut

@@ -1,9 +1,6 @@
-import { useState } from 'react'
 import type { ReactNode } from 'react'
 import type { Artifact } from '../api/client'
-import { formatBytes, formatCount } from '../lib/format'
-import { formatDateTime } from '../lib/time'
-import { CopyButton } from './CopyButton'
+import { formatCount } from '../lib/format'
 
 type Props = {
   source: string
@@ -21,12 +18,7 @@ type Props = {
   children?: ReactNode
 }
 
-function shortHash(sha: string): string {
-  if (sha.length <= 20) return sha
-  return `${sha.slice(0, 10)}…${sha.slice(-8)}`
-}
-
-/** One evidence category: status, a quick-drop target scoped to this source, and its files as a small tree. */
+/** One evidence category: status and a drop target. Files are listed once, under the grid. */
 export function SourceCard({
   source,
   label,
@@ -42,7 +34,11 @@ export function SourceCard({
   disabled,
   children,
 }: Props) {
-  const [expanded, setExpanded] = useState(true)
+  const problem = artifacts.find((artifact) => {
+    const status = integrityBySource?.get(artifact.id)
+    return status === 'modified' || status === 'missing'
+  })
+  const problemStatus = problem ? integrityBySource?.get(problem.id) : undefined
 
   return (
     <div className="source-card">
@@ -56,6 +52,7 @@ export function SourceCard({
           {artifacts.length > 0 ? (
             <span className="mono small">
               {artifacts.length} file{artifacts.length === 1 ? '' : 's'} · {formatCount(totalEvents)} events
+              {problemStatus ? ` · ${problemStatus}` : ''}
             </span>
           ) : (
             <span className="muted small">Not yet acquired</span>
@@ -91,53 +88,6 @@ export function SourceCard({
         </div>
         {children}
       </div>
-
-      {artifacts.length > 0 ? (
-        <div className="source-tree">
-          <button
-            type="button"
-            className="source-tree-toggle"
-            onClick={() => setExpanded((v) => !v)}
-            aria-expanded={expanded}
-          >
-            <span className={`tree-caret${expanded ? ' open' : ''}`} aria-hidden="true" />
-            files
-          </button>
-          {expanded ? (
-            <ul className="source-tree-list">
-              {artifacts.map((a) => {
-                const status = integrityBySource?.get(a.id)
-                return (
-                  <li key={a.id} className="source-tree-item">
-                    <span className="tree-branch" aria-hidden="true" />
-                    <div className="source-tree-row">
-                      <div className="cell-title">{a.original_name}</div>
-                      <div className="cell-sub">
-                        <span className="event-pill mono">{formatCount(a.row_count)} events</span>
-                        <span className="mono muted">
-                          {a.parser} · {formatBytes(a.size_bytes)} · {formatDateTime(Date.parse(a.ingested_at))}
-                        </span>
-                        {a.skipped_rows > 0 ? (
-                          <span className="warn-text" title={a.notes.join('\n')}>
-                            · {formatCount(a.skipped_rows)} rows skipped
-                          </span>
-                        ) : null}
-                      </div>
-                      <div className="hash-row">
-                        <code className="hash-text mono" title={a.sha256}>
-                          SHA-256 {shortHash(a.sha256)}
-                        </code>
-                        <CopyButton value={a.sha256} label="Copy hash" className="copy-hash" />
-                        {status ? <span className={`sev sev-${status === 'ok' ? 'pass' : 'fail'}`}>{status}</span> : null}
-                      </div>
-                    </div>
-                  </li>
-                )
-              })}
-            </ul>
-          ) : null}
-        </div>
-      ) : null}
     </div>
   )
 }

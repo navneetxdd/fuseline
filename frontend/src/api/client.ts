@@ -169,6 +169,30 @@ export type DeviceBundleResult = {
   sessions_rebuilt: number
 }
 
+export type CountItem = { key: string; label: string; count: number }
+
+export type PackageActivity = {
+  package: string
+  label: string
+  events: number
+  foreground_ms: number
+}
+
+export type HourCount = { start_utc: string; count: number }
+
+export type ActivitySummary = {
+  event_count: number
+  source_counts: Record<string, number>
+  first_event_utc: string | null
+  last_event_utc: string | null
+  packages: PackageActivity[]
+  event_types: CountItem[]
+  domains: CountItem[]
+  location_fixes: number
+  hours: HourCount[]
+  notes: string[]
+}
+
 export type ReportSummary = {
   case: Case
   artifacts: Artifact[]
@@ -181,6 +205,7 @@ export type ReportSummary = {
   audit: AuditEntry[]
   first_event_utc: string | null
   last_event_utc: string | null
+  activity: ActivitySummary
 }
 
 export type TimelineQuery = {
@@ -362,5 +387,6 @@ export const api = {
 
   validation: (id: string, refresh = false) =>
     request<Finding[]>(`/api/cases/${id}/validation${refresh ? '?refresh=true' : ''}`),
+  activity: (id: string) => request<ActivitySummary>(`/api/cases/${id}/activity`),
   report: (id: string) => request<ReportSummary>(`/api/cases/${id}/report`),
 }

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { type Session, type TimelineEvent, api } from '../api/client'
+import { type ActivitySummary, type Session, type TimelineEvent, api } from '../api/client'
+import { ActivityReadout, checksWorthShowing } from '../components/ActivityReadout'
 import { Callout } from '../components/Callout'
 import { CorrelationSettings } from '../components/CorrelationSettings'
 import { EventDrawer } from '../components/EventDrawer'
@@ -13,12 +14,23 @@ import { SourceChip } from '../components/SourceChip'
 import { TimelineChart } from '../components/TimelineChart'
 import { useDebounced } from '../hooks/useDebounced'
 import { formatCount } from '../lib/format'
-import { SOURCES } from '../lib/sources'
+import { SOURCE_LABEL, SOURCES } from '../lib/sources'
 import { formatDateTime, formatDuration, padRange, zoneLabel } from '../lib/time'
 import { useCase } from '../state/CaseContext'
 import { useTimelineData } from './timeline/useTimelineData'
 
 const TZ_KEY = 'fuseline.tzMode'
+
+function sessionNote(counts: Record<string, number>): string {
+  const present = Object.entries(counts).filter(([, count]) => count > 0)
+  if (present.length === 0) return 'No events in this case yet.'
+  if (present.length === 1) {
+    const [source, count] = present[0]
+    const label = (SOURCE_LABEL[source] ?? source).toLowerCase()
+    return `Sessions line up two sources in the same few minutes. This case has ${formatCount(count)} ${label} events and no second source.`
+  }
+  return 'These sources do not fall inside the same few minutes. Correlation changes how far apart events can be.'
+}
 
 function readTzMode(): 'utc' | 'case' {
   try {
@@ -46,6 +58,7 @@ function Workspace({ caseId, caseTimezone }: { caseId: string; caseTimezone: str
   const [sessionEvents, setSessionEvents] = useState<TimelineEvent[] | null>(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [sideTab, setSideTab] = useState<'sessions' | 'map'>('sessions')
+  const [activity, setActivity] = useState<ActivitySummary | null>(null)
 
   const timeZone = tzMode === 'case' ? caseTimezone : 'UTC'
   const canSwitchZone = caseTimezone !== 'UTC'
@@ -57,6 +70,21 @@ function Workspace({ caseId, caseTimezone }: { caseId: string; caseTimezone: str
   const sourceFilter = present.length === 0 || activeSources.length === present.length ? null : activeSources
 
   const data = useTimelineData(caseId, { sources: sourceFilter, q: debouncedQuery })
+
+  useEffect(() => {
+    let cancelled = false
+    void api
+      .activity(caseId)
+      .then((row) => {
+        if (!cancelled) setActivity(row)
+      })
+      .catch(() => {
+        if (!cancelled) setActivity(null)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [caseId, data.artifacts])
 
   useEffect(() => {
     const key = SOURCES.filter((s) => (data.sourceCounts[s] ?? 0) > 0).join(',')
@@ -114,7 +142,7 @@ function Workspace({ caseId, caseTimezone }: { caseId: string; caseTimezone: str
 
   const totalInCase = Object.values(data.sourceCounts).reduce((a, b) => a + b, 0)
   const truncated = data.marks === null && data.total > 0
-  const warnings = data.findings.filter((f) => f.severity === 'warn' || f.severity === 'fail')
+  const warnings = checksWorthShowing(data.findings)
 
   const tableEvents = activeSession ? (sessionEvents ?? []) : data.events
   const tableTotal = activeSession ? (sessionEvents?.length ?? 0) : data.total
@@ -144,7 +172,7 @@ function Workspace({ caseId, caseTimezone }: { caseId: string; caseTimezone: str
           <div>
             <h1>Timeline</h1>
             <p className="muted">
-              {formatCount(totalInCase)} events · {data.sessions.length} proximity sessions · times in{' '}
+              {formatCount(totalInCase)} events · {data.sessions.length} sessions · times in{' '}
               <strong>{zoneLabel(timeZone)}</strong>
             </p>
           </div>
@@ -212,13 +240,15 @@ function Workspace({ caseId, caseTimezone }: { caseId: string; caseTimezone: str
           />
         </div>
 
+        {activity && activity.event_count > 0 ? <ActivityReadout activity={activity} /> : null}
+
         {data.error ? <div className="error-box">{data.error}</div> : null}
         {warnings.length > 0 ? (
-          <Callout tone="warn" title={`${warnings.length} validation warning${warnings.length === 1 ? '' : 's'}`}>
+          <Callout tone="warn" title={warnings.length === 1 ? 'Check' : `${warnings.length} checks`}>
             {warnings.slice(0, 2).map((f) => (
               <div key={f.id}>{f.message}</div>
             ))}
-            <Link to="/report">See all findings in the report</Link>
+            <Link to="/report">Listed on the report</Link>
           </Callout>
         ) : null}
 
@@ -251,7 +281,7 @@ function Workspace({ caseId, caseTimezone }: { caseId: string; caseTimezone: str
 
         <div className="chart-foot">
           <span className="muted small">
-            Scroll to zoom · drag to pan · double-click to zoom in · shaded bands are proximity sessions
+            Each row is one source. Bar height is how many events fell in that slice. Zoom in to see single events.
           </span>
           <span className="mono muted small">
             {formatDateTime(data.view.start, timeZone)} → {formatDateTime(data.view.end, timeZone)} (
@@ -324,9 +354,7 @@ function Workspace({ caseId, caseTimezone }: { caseId: string; caseTimezone: str
 
           {sideTab === 'sessions' ? (
             data.sessions.length === 0 ? (
-              <div className="empty compact">
-                No multi-source clusters. Ingest at least two source types, or widen the window under “Correlation…”.
-              </div>
+              <div className="empty compact">{sessionNote(data.sourceCounts)}</div>
             ) : (
               <div className="session-list">
                 {data.sessions.map((s) => (

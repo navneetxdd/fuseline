@@ -363,8 +363,13 @@ def test_reports_contain_provenance_and_exports_are_audited(client, case_id, ing
     csv_text = client.get(f"/api/cases/{case_id}/report/csv").text
     rows = list(csv.DictReader(io.StringIO(csv_text)))
     assert len(rows) == 17 and rows[0]["artifact_sha256"] and rows[0]["ts_basis"]
+    activity = client.get(f"/api/cases/{case_id}/activity").json()
+    assert activity["event_count"] == 17
+    assert activity["notes"] and activity["hours"]
+    pdf = client.get(f"/api/cases/{case_id}/report/pdf")
+    assert pdf.status_code == 200 and pdf.content.startswith(b"%PDF")
     exports = [a for a in client.get(f"/api/cases/{case_id}/audit").json() if a["action"] == "report.export"]
-    assert {a["detail"]["kind"] for a in exports} >= {"html", "json", "csv"}
+    assert {a["detail"]["kind"] for a in exports} >= {"html", "json", "csv", "pdf"}
 
 
 def test_html_report_hash_matches_the_csv_export(client, case_id, ingest_fixtures):

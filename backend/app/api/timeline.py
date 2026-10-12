@@ -6,10 +6,17 @@ from fastapi import APIRouter, HTTPException, Query
 
 from app.api.deps import event_from_row, parse_bound, require_case_id
 from app.db import case_conn
-from app.models import EventOut, LocationPoint, LocationsResponse, OverviewResponse, TimelineResponse
+from app.models import ActivityOut, EventOut, LocationPoint, LocationsResponse, OverviewResponse, TimelineResponse
+from app.report.activity import summarize_activity
 from app.timeutil import nice_bucket_ms
 
 router = APIRouter(prefix="/api/cases/{case_id}", tags=["timeline"])
+
+
+@router.get("/activity", response_model=ActivityOut)
+def case_activity(case_id: str) -> ActivityOut:
+    case_id = require_case_id(case_id)
+    return ActivityOut(**summarize_activity(case_id))
 
 
 def _like_escape(text: str) -> str:

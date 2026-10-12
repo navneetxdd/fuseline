@@ -14,6 +14,7 @@ from app import __version__, audit
 from app.api.deps import session_from_row
 from app.db import case_conn
 from app.pipeline.ingest import artifact_payload, get_case, get_correlation_params
+from app.report.activity import summarize_activity
 from app.security import csv_safe
 from app.timeutil import from_epoch_ms, nice_bucket_ms, now_iso, to_iso_utc
 
@@ -147,6 +148,7 @@ def gather_report_data(case_id: str) -> dict[str, Any]:
         "first_event_utc": to_iso_utc(from_epoch_ms(lo)) if event_count else None,
         "last_event_utc": to_iso_utc(from_epoch_ms(hi)) if event_count else None,
         "chart": timeline_chart(series, origin, bucket, buckets),
+        "activity": summarize_activity(case_id),
     }
 
 

@@ -7,15 +7,12 @@ import { AcquirePage } from './pages/Acquire'
 import { CasesPage } from './pages/Cases'
 import { ReportPage } from './pages/Report'
 import { TimelinePage } from './pages/Timeline'
-import { useCase } from './state/CaseContext'
 
 const THEME_LABEL = { system: 'Auto', light: 'Light', dark: 'Dark' } as const
 
 export default function App() {
-  const { caseId, activeCase } = useCase()
   const { preference, cycle } = useTheme()
   const [apiOk, setApiOk] = useState<boolean | null>(null)
-  const [version, setVersion] = useState<string | null>(null)
 
   // Probe the backend now, and keep probing every few seconds while it is unreachable.
   useEffect(() => {
@@ -23,10 +20,9 @@ export default function App() {
     let timer: ReturnType<typeof setTimeout>
     const probe = async () => {
       try {
-        const h = await api.health()
+        await api.health()
         if (cancelled) return
         setApiOk(true)
-        setVersion(h.version)
       } catch {
         if (cancelled) return
         setApiOk(false)
@@ -49,8 +45,8 @@ export default function App() {
       </a>
       <header className="topbar">
         <div className="brand">
+          <img className="brand-mark" src="/favicon.svg" alt="" width={22} height={22} />
           <div className="brand-name">Fuseline</div>
-          <div className="brand-sub">Mobile forensic timeline{version ? ` · v${version}` : ''}</div>
         </div>
         <nav className="nav" aria-label="Workflow">
           <NavLink to="/" end className={link}>
@@ -67,10 +63,7 @@ export default function App() {
           </NavLink>
         </nav>
         <div className="top-actions">
-          <div className="case-chip" title={caseId ?? undefined}>
-            {apiOk === false ? 'API offline' : activeCase ? activeCase.name : 'no case selected'}
-            {activeCase && apiOk !== false ? <span className="muted"> · {activeCase.timezone}</span> : null}
-          </div>
+          {apiOk === false ? <span className="case-chip">API offline</span> : null}
           <button
             type="button"
             className="btn ghost small"

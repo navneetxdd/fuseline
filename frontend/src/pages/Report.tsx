@@ -7,8 +7,8 @@ import {
   type TimelineEvent,
   api,
 } from '../api/client'
+import { ActivityReadout, checksWorthShowing, correlationSentence } from '../components/ActivityReadout'
 import { Callout } from '../components/Callout'
-import { FindingsTable } from '../components/FindingsTable'
 import { NoCase } from '../components/NoCase'
 import { SourceChip } from '../components/SourceChip'
 import { formatBytes, formatCount, shortHash } from '../lib/format'
@@ -66,13 +66,15 @@ function Report({ caseId }: { caseId: string }) {
     void load()
   }, [load])
 
-  async function onExport(kind: 'html' | 'csv' | 'json', raw = false) {
+  async function onExport(kind: 'html' | 'csv' | 'json' | 'pdf', raw = false) {
     const label = raw ? 'csv-raw' : kind
     setExporting(label)
     setError(null)
     try {
       if (kind === 'html') window.open(`/api/cases/${caseId}/report/html`, '_blank', 'noopener,noreferrer')
-      else {
+      else if (kind === 'pdf') {
+        await downloadExport(`/api/cases/${caseId}/report/pdf`, `fuseline_${caseId.slice(0, 8)}.pdf`)
+      } else {
         const url = `/api/cases/${caseId}/report/${kind}${raw ? '?raw=true' : ''}`
         await downloadExport(url, `fuseline_${caseId.slice(0, 8)}${raw ? '_raw' : ''}.${kind}`)
       }
@@ -120,7 +122,14 @@ function Report({ caseId }: { caseId: string }) {
         <div className="panel-head">
           <div>
             <h1>Report</h1>
-            <p className="muted">Validation findings, provenance and examiner exports for this case.</p>
+            {report ? (
+              <p className="muted">
+                {report.case.name}
+                {report.case.examiner ? ` · ${report.case.examiner}` : ''} · device timezone {report.case.timezone}
+              </p>
+            ) : (
+              <p className="muted">What this case contains, and a PDF of the same pages.</p>
+            )}
           </div>
           <div className="row">
             <button type="button" className="btn secondary small" disabled={loading} onClick={() => void load()}>
@@ -128,11 +137,19 @@ function Report({ caseId }: { caseId: string }) {
             </button>
             <button
               type="button"
+              className="btn accent small"
+              disabled={!!exporting || !report}
+              onClick={() => void onExport('pdf')}
+            >
+              {exporting === 'pdf' ? 'Preparing PDF…' : 'Download PDF'}
+            </button>
+            <button
+              type="button"
               className="btn secondary small"
               disabled={!!exporting}
               onClick={() => void onExport('html')}
             >
-              HTML report
+              HTML
             </button>
             <button
               type="button"
@@ -144,91 +161,65 @@ function Report({ caseId }: { caseId: string }) {
               {exporting === 'csv' ? 'CSV…' : 'CSV'}
             </button>
             <button type="button" className="btn small" disabled={!!exporting} onClick={() => void onExport('json')}>
-              {exporting === 'json' ? 'JSON…' : 'JSON (lossless)'}
+              {exporting === 'json' ? 'JSON…' : 'JSON'}
             </button>
           </div>
         </div>
-        <div className="row" style={{ marginTop: '-0.25rem' }}>
-          <button
-            type="button"
-            className="btn ghost small"
-            disabled={!!exporting}
-            onClick={() => void onExport('csv', true)}
-            title="Same data, without the spreadsheet-formula safeguard. Only use this if you trust every cell and need pristine values"
-          >
-            {exporting === 'csv-raw' ? 'Exporting raw CSV…' : 'Export raw CSV (unescaped)'}
-          </button>
-        </div>
 
         {error ? <div className="error-box">{error}</div> : null}
-
-        {report ? (
-          <>
-            <div className="stat-row">
-              <div className="stat">
-                <div className="n">{formatCount(report.event_count)}</div>
-                <div className="l">Events</div>
-              </div>
-              <div className="stat">
-                <div className="n">{report.artifacts.length}</div>
-                <div className="l">Artifacts</div>
-              </div>
-              <div className="stat">
-                <div className="n">{report.session_count}</div>
-                <div className="l">Sessions</div>
-              </div>
-              {report.first_event_utc && report.last_event_utc ? (
-                <div className="stat wide">
-                  <div className="n small-n">
-                    {formatDuration(Date.parse(report.last_event_utc) - Date.parse(report.first_event_utc))}
-                  </div>
-                  <div className="l">
-                    {formatDateTime(Date.parse(report.first_event_utc))} → {formatDateTime(Date.parse(report.last_event_utc))}{' '}
-                    UTC
-                  </div>
-                </div>
-              ) : null}
-            </div>
-            <div className="row">
-              {Object.entries(report.source_counts).map(([src, n]) => (
-                <span key={src} className="row tight">
-                  <SourceChip source={src} />
-                  <span className="mono muted">{formatCount(n)}</span>
-                </span>
-              ))}
-            </div>
-          </>
-        ) : null}
+        {report ? <ActivityReadout activity={report.activity} /> : null}
       </section>
 
-      <section className="panel">
-        <h2>Validation</h2>
-        <FindingsTable findings={report?.findings ?? []} empty="No findings yet. Acquire evidence first." />
-      </section>
-
-      <section className="panel">
-        <h2>Proximity sessions</h2>
-        {report ? (
-          <p className="muted small">
-            Chained while events are within <strong>{report.correlation.window_seconds}s</strong> of each other, at least{' '}
-            <strong>{report.correlation.min_sources}</strong> sources, capped at{' '}
-            <strong>{formatDuration(report.correlation.max_span_seconds * 1000)}</strong>. Sessions show temporal
-            coincidence, not causation.
-          </p>
-        ) : null}
-        {!report || report.sessions.length === 0 ? (
-          <div className="empty">No correlated sessions.</div>
-        ) : (
+      {report && report.artifacts.length > 0 ? (
+        <section className="panel">
+          <h2>Acquired files</h2>
           <div className="table-wrap">
             <table className="data">
               <thead>
                 <tr>
+                  <th scope="col">File</th>
+                  <th scope="col">Parser</th>
                   <th scope="col" className="num">
-                    Score
+                    Events
                   </th>
+                  <th scope="col">SHA-256</th>
+                </tr>
+              </thead>
+              <tbody>
+                {report.artifacts.map((a) => (
+                  <tr key={a.id}>
+                    <td>
+                      {a.original_name}
+                      <div className="cell-sub">
+                        {formatBytes(a.size_bytes)}
+                        {a.skipped_rows > 0 ? ` · ${formatCount(a.skipped_rows)} rows skipped` : ''}
+                      </div>
+                    </td>
+                    <td className="mono">{a.parser}</td>
+                    <td className="num mono">{formatCount(a.row_count)}</td>
+                    <td className="mono hash" title={a.sha256}>
+                      {shortHash(a.sha256, 16, 8)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      ) : null}
+
+      {report && (report.session_count > 0 || Object.keys(report.activity.source_counts).length >= 2) ? (
+      <section className="panel">
+        <h2>Correlation</h2>
+        <p>{correlationSentence(report.activity, report.correlation.window_seconds, report.session_count)}</p>
+        {report.sessions.length > 0 ? (
+          <div className="table-wrap">
+            <table className="data">
+              <thead>
+                <tr>
                   <th scope="col">Window ({tz === 'UTC' ? 'UTC' : tz})</th>
                   <th scope="col">Sources</th>
-                  <th scope="col">Summary</th>
+                  <th scope="col">What overlaps</th>
                   <th scope="col">
                     <span className="sr-only">Details</span>
                   </th>
@@ -239,7 +230,6 @@ function Report({ caseId }: { caseId: string }) {
                   const expanded = open.has(s.id)
                   const rows = [
                     <tr key={s.id}>
-                      <td className="num mono">{s.score.toFixed(2)}</td>
                       <td className="mono nowrap">
                         {formatDateTime(Date.parse(s.start_utc), tz)}
                         <div className="cell-sub">
@@ -269,7 +259,7 @@ function Report({ caseId }: { caseId: string }) {
                   if (expanded) {
                     rows.push(
                       <tr key={`${s.id}-events`} className="subrow">
-                        <td colSpan={5}>
+                        <td colSpan={4}>
                           <div className="subrow-scroll">
                             {(sessionEvents[s.id] ?? []).map((e) => (
                               <div key={e.id} className="subrow-line">
@@ -292,7 +282,23 @@ function Report({ caseId }: { caseId: string }) {
               <p className="muted small">Showing the top 25 of {report.sessions.length} by score. The exports contain all of them.</p>
             ) : null}
           </div>
-        )}
+        ) : null}
+      </section>
+      ) : null}
+
+      <section className="panel">
+        <h2>Checks</h2>
+        {report ? (
+          checksWorthShowing(report.findings).length === 0 ? (
+            <p>No skipped rows, clock warnings, or hash problems were recorded.</p>
+          ) : (
+            <ul className="check-list">
+              {checksWorthShowing(report.findings).map((f) => (
+                <li key={f.id}>{f.message}</li>
+              ))}
+            </ul>
+          )
+        ) : null}
       </section>
 
       <section className="panel">
@@ -319,34 +325,6 @@ function Report({ caseId }: { caseId: string }) {
               {!integrity.audit_chain_ok ? `Audit chain broken at entry #${integrity.audit_first_bad_entry}.` : ''}
             </Callout>
           )
-        ) : null}
-        {report && report.artifacts.length > 0 ? (
-          <div className="table-wrap">
-            <table className="data">
-              <thead>
-                <tr>
-                  <th scope="col">Artifact</th>
-                  <th scope="col">Parser</th>
-                  <th scope="col">SHA-256</th>
-                  <th scope="col" className="num">
-                    Size
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {report.artifacts.map((a) => (
-                  <tr key={a.id}>
-                    <td>{a.original_name}</td>
-                    <td className="mono">{a.parser}</td>
-                    <td className="mono hash" title={a.sha256}>
-                      {shortHash(a.sha256, 16, 8)}
-                    </td>
-                    <td className="num">{formatBytes(a.size_bytes)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
         ) : null}
         {auditEntries.length > 0 ? (
           <div className="table-wrap audit">
