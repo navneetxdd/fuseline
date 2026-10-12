@@ -8,29 +8,16 @@ import { EventDrawer } from '../components/EventDrawer'
 import { EventTable } from '../components/EventTable'
 import { MapPanel } from '../components/MapPanel'
 import { NoCase } from '../components/NoCase'
-import { OverviewBrush } from '../components/OverviewBrush'
 import { SessionCard } from '../components/SessionCard'
 import { SourceChip } from '../components/SourceChip'
-import { TimelineChart } from '../components/TimelineChart'
 import { useDebounced } from '../hooks/useDebounced'
 import { formatCount } from '../lib/format'
-import { SOURCE_LABEL, SOURCES } from '../lib/sources'
-import { formatDateTime, formatDuration, padRange, zoneLabel } from '../lib/time'
+import { SOURCES } from '../lib/sources'
+import { padRange, zoneLabel } from '../lib/time'
 import { useCase } from '../state/CaseContext'
 import { useTimelineData } from './timeline/useTimelineData'
 
 const TZ_KEY = 'fuseline.tzMode'
-
-function sessionNote(counts: Record<string, number>): string {
-  const present = Object.entries(counts).filter(([, count]) => count > 0)
-  if (present.length === 0) return 'No events in this case yet.'
-  if (present.length === 1) {
-    const [source, count] = present[0]
-    const label = (SOURCE_LABEL[source] ?? source).toLowerCase()
-    return `Sessions line up two sources in the same few minutes. This case has ${formatCount(count)} ${label} events and no second source.`
-  }
-  return 'These sources do not fall inside the same few minutes. Correlation changes how far apart events can be.'
-}
 
 function readTzMode(): 'utc' | 'case' {
   try {
@@ -141,12 +128,15 @@ function Workspace({ caseId, caseTimezone }: { caseId: string; caseTimezone: str
   }, [data])
 
   const totalInCase = Object.values(data.sourceCounts).reduce((a, b) => a + b, 0)
-  const truncated = data.marks === null && data.total > 0
   const warnings = checksWorthShowing(data.findings)
+  const points = enabled.location === false ? [] : (data.locations?.points ?? [])
+  const hasSessions = data.sessions.length > 0
+  const hasMap = points.length > 0
+  const showSide = hasSessions || hasMap
+  const showCorrelation = present.length >= 2
 
   const tableEvents = activeSession ? (sessionEvents ?? []) : data.events
   const tableTotal = activeSession ? (sessionEvents?.length ?? 0) : data.total
-  const points = enabled.location === false ? [] : (data.locations?.points ?? [])
 
   // "Empty" comes from the overview's own total (not the per-source counts, which arrive a beat later),
   // and only when no filter is hiding events.
@@ -172,7 +162,8 @@ function Workspace({ caseId, caseTimezone }: { caseId: string; caseTimezone: str
           <div>
             <h1>Timeline</h1>
             <p className="muted">
-              {formatCount(totalInCase)} events · {data.sessions.length} sessions · times in{' '}
+              {formatCount(totalInCase)} events
+              {hasSessions ? ` · ${formatCount(data.sessions.length)} sessions` : ''} · times in{' '}
               <strong>{zoneLabel(timeZone)}</strong>
             </p>
           </div>
@@ -198,14 +189,16 @@ function Workspace({ caseId, caseTimezone }: { caseId: string; caseTimezone: str
                 </button>
               </div>
             ) : null}
-            <button
-              type="button"
-              className="btn secondary small"
-              aria-expanded={settingsOpen}
-              onClick={() => setSettingsOpen((v) => !v)}
-            >
-              Correlation…
-            </button>
+            {showCorrelation ? (
+              <button
+                type="button"
+                className="btn secondary small"
+                aria-expanded={settingsOpen}
+                onClick={() => setSettingsOpen((v) => !v)}
+              >
+                Correlation…
+              </button>
+            ) : null}
             <button type="button" className="btn secondary small" disabled={data.loading} onClick={data.refresh}>
               {data.loading ? 'Loading…' : 'Refresh'}
             </button>
@@ -253,66 +246,22 @@ function Workspace({ caseId, caseTimezone }: { caseId: string; caseTimezone: str
         ) : null}
 
         {initialising ? <div className="empty compact">Loading timeline…</div> : null}
-        <div className="chart-block" hidden={initialising}>
-          <OverviewBrush
-            overview={data.overview}
-            lanes={activeSources}
-            bounds={data.bounds}
-            view={data.view}
-            onViewChange={data.setView}
-            timeZone={timeZone}
-          />
-          <TimelineChart
-            view={data.view}
-            bounds={data.bounds}
-            onViewChange={data.setView}
-            lanes={activeSources}
-            density={data.density}
-            marks={data.marks}
-            sessions={data.sessions}
-            activeSessionId={activeSession?.id ?? null}
-            highlightIds={highlightIds}
-            selectedId={selected?.id ?? null}
-            onSelectEvent={setSelected}
-            onSelectSession={focusSession}
-            timeZone={timeZone}
-          />
-        </div>
-
-        <div className="chart-foot">
-          <span className="muted small">
-            Each row is one source. Bar height is how many events fell in that slice. Zoom in to see single events.
-          </span>
-          <span className="mono muted small">
-            {formatDateTime(data.view.start, timeZone)} → {formatDateTime(data.view.end, timeZone)} (
-            {formatDuration(data.view.end - data.view.start)})
-          </span>
-          {data.isZoomed ? (
-            <button type="button" className="btn secondary small" onClick={() => data.setView(null)}>
-              Show everything
-            </button>
-          ) : null}
-        </div>
-        {truncated ? (
-          <Callout tone="info">
-            {formatCount(data.total)} events in this window. Too many to draw one by one. The chart shows density;
-            zoom in (or use the brush above) to see individual events.
-          </Callout>
-        ) : null}
       </section>
 
-      <div className="workspace-grid">
+      <div className={showSide ? 'workspace-grid' : 'stack'}>
         <div className="stack">
+          {selected ? (
+            <section className="panel">
+              <EventDrawer
+                event={selected}
+                artifacts={data.artifacts}
+                timeZone={timeZone}
+                onClose={() => setSelected(null)}
+              />
+            </section>
+          ) : null}
           <section className="panel">
-            <EventDrawer
-              event={selected}
-              artifacts={data.artifacts}
-              timeZone={timeZone}
-              onClose={() => setSelected(null)}
-            />
-          </section>
-          <section className="panel">
-            <h2>{activeSession ? 'Session events' : 'Events in view'}</h2>
+            <h2>{activeSession ? 'Session events' : 'Events'}</h2>
             <EventTable
               events={tableEvents}
               total={tableTotal}
@@ -327,35 +276,37 @@ function Workspace({ caseId, caseTimezone }: { caseId: string; caseTimezone: str
           </section>
         </div>
 
-        <aside className="panel">
-          <div className="panel-head">
-            <h2 className="sr-only">Sessions and map</h2>
-            <div className="segmented" role="tablist" aria-label="Sessions or map">
-              <button
-                type="button"
-                role="tab"
-                aria-selected={sideTab === 'sessions'}
-                className={sideTab === 'sessions' ? 'on' : ''}
-                onClick={() => setSideTab('sessions')}
-              >
-                Sessions{data.sessions.length > 0 ? ` (${data.sessions.length})` : ''}
-              </button>
-              <button
-                type="button"
-                role="tab"
-                aria-selected={sideTab === 'map'}
-                className={sideTab === 'map' ? 'on' : ''}
-                onClick={() => setSideTab('map')}
-              >
-                Map
-              </button>
-            </div>
-          </div>
-
-          {sideTab === 'sessions' ? (
-            data.sessions.length === 0 ? (
-              <div className="empty compact">{sessionNote(data.sourceCounts)}</div>
+        {showSide ? (
+          <aside className="panel">
+            {hasSessions && hasMap ? (
+              <div className="panel-head">
+                <h2 className="sr-only">Sessions and map</h2>
+                <div className="segmented" role="tablist" aria-label="Sessions or map">
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={sideTab === 'sessions'}
+                    className={sideTab === 'sessions' ? 'on' : ''}
+                    onClick={() => setSideTab('sessions')}
+                  >
+                    Sessions ({data.sessions.length})
+                  </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={sideTab === 'map'}
+                    className={sideTab === 'map' ? 'on' : ''}
+                    onClick={() => setSideTab('map')}
+                  >
+                    Map
+                  </button>
+                </div>
+              </div>
             ) : (
+              <h2>{hasSessions ? 'Sessions' : 'Map'}</h2>
+            )}
+
+            {hasSessions && (!hasMap || sideTab === 'sessions') ? (
               <div className="session-list">
                 {data.sessions.map((s) => (
                   <SessionCard
@@ -367,19 +318,19 @@ function Workspace({ caseId, caseTimezone }: { caseId: string; caseTimezone: str
                   />
                 ))}
               </div>
-            )
-          ) : (
-            <MapPanel
-              points={points}
-              total={data.locations?.total ?? 0}
-              selectedId={selected?.id ?? null}
-              highlightIds={highlightIds}
-              activeSession={activeSession}
-              onSelectPoint={(id) => void selectById(id)}
-              timeZone={timeZone}
-            />
-          )}
-        </aside>
+            ) : (
+              <MapPanel
+                points={points}
+                total={data.locations?.total ?? 0}
+                selectedId={selected?.id ?? null}
+                highlightIds={highlightIds}
+                activeSession={activeSession}
+                onSelectPoint={(id) => void selectById(id)}
+                timeZone={timeZone}
+              />
+            )}
+          </aside>
+        ) : null}
       </div>
     </div>
   )

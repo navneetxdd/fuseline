@@ -31,7 +31,7 @@ export function EventDrawer({ event, artifacts, timeZone, onClose }: Props) {
   if (!event) {
     return (
       <div className="drawer empty-drawer">
-        Select an event (chart mark, table row, or map point) to inspect its provenance.
+        Select a row to inspect where it came from.
       </div>
     )
   }
