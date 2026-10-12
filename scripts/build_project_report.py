@@ -21,6 +21,7 @@ from reportlab.platypus import (
     BaseDocTemplate,
     Flowable,
     Frame,
+    Image,
     NextPageTemplate,
     PageBreak,
     PageTemplate,
@@ -32,6 +33,7 @@ from reportlab.platypus import (
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "docs" / "Fuseline-Capstone-Report.pdf"
+SHOTS = ROOT / "docs" / "screenshots"
 
 PAGE_W, PAGE_H = A4
 MARGIN_L = 20 * mm
@@ -337,6 +339,16 @@ class SessionFigure(Flowable):
         c.drawString(left, 6, "Long clusters are split at the widest internal gap.")
 
 
+def screenshot(name: str, width: float, max_height: float = 92 * mm) -> Image:
+    path = SHOTS / name
+    img = Image(str(path))
+    scale = min(width / float(img.imageWidth), max_height / float(img.imageHeight))
+    img.drawWidth = float(img.imageWidth) * scale
+    img.drawHeight = float(img.imageHeight) * scale
+    img.hAlign = "CENTER"
+    return img
+
+
 def heading(title: str, pages: dict[str, int]) -> list:
     return [TocMark(title, pages), Paragraph(esc(title), S["h1"])]
 
@@ -521,7 +533,14 @@ def story(width: float, pages: dict[str, int]) -> list:
     )
     out.append(Paragraph("Figure 1. Path from evidence to the examiner's view.", S["caption"]))
     out.append(PipelineFigure(width))
-    out.append(Spacer(1, 8))
+    out.append(Spacer(1, 4))
+    out.append(screenshot("project-acquire.png", width, 78 * mm))
+    out.append(
+        Paragraph(
+            "Figure 2. Acquisition screen. Each source is recognised from the file contents. This case has an Android usage-stats pull.",
+            S["caption"],
+        )
+    )
     out.append(
         Paragraph(
             f"The parser is chosen by reading the file, not by trusting the file name. The formats recognised are listed below. Plaso is optional. If an examiner already has a Plaso storage file, <font face='{FONT_M}'>psort</font> can write L2TCSV or JSON lines, and Fuseline maps rows it understands onto the location, browsing, and app-usage lanes.",
@@ -614,7 +633,7 @@ def story(width: float, pages: dict[str, int]) -> list:
     out.append(SessionFigure(width))
     out.append(
         Paragraph(
-            "Figure 2. Schematic of the default window. The marks are not taken from a case.",
+            "Figure 3. Diagram of the default rule. Two sources inside 300 seconds form a session. A run longer than 30 minutes is split.",
             S["caption"],
         )
     )
@@ -689,19 +708,33 @@ def story(width: float, pages: dict[str, int]) -> list:
     out += heading(SECTIONS[3], pages)
     out.append(
         Paragraph(
-            "Given artifacts the parsers recognise, the examiner gets one timeline in UTC. Location, browsing, and app usage are drawn on separate lanes. A session is a band across the lanes it contains. Selecting the session shows its member events. Selecting an event shows the original timestamp, the basis, the source file, and the parser that read it.",
+            "Given artifacts the parsers recognise, the examiner gets one UTC timeline. The hour chart shows how many events fell in each hour, and which apps and record types those events are. The event list sits under that chart. Its filter searches title, package, URL, and domain. Selecting a row shows the original timestamp, the time basis, the source file, and the SHA-256 of the stored copy.",
+            body,
+        )
+    )
+    out.append(screenshot("project-timeline.png", width, 88 * mm))
+    out.append(
+        Paragraph(
+            "Figure 4. Hour chart for an Android usage-stats pull. The blank stretch is hours with no events. Selecting the busiest hour lists the apps and record types inside it.",
+            S["caption"],
+        )
+    )
+    out.append(screenshot("project-events.png", width, 88 * mm))
+    out.append(
+        Paragraph(
+            "Figure 5. Event list. The filter is on this table. A tilde marks a timestamp that had no zone and was read in the case timezone.",
+            S["caption"],
+        )
+    )
+    out.append(
+        Paragraph(
+            "A session is built only when events from at least two sources fall inside the window in section 3. A map is drawn only when location fixes include coordinates. A case that contains only app usage therefore has an hour chart and an event list, and no session list and no map.",
             body,
         )
     )
     out.append(
         Paragraph(
-            "Location fixes that were parsed are plotted on a local grid. The drawing is produced on the examiner's machine. On a large case the plot may show a subset of the points, always including the first and the last, while every parsed fix remains stored.",
-            body,
-        )
-    )
-    out.append(
-        Paragraph(
-            "The case report is separate from this project document. From a case the examiner can export an HTML report (findings, sessions, and the audit chain), a CSV of events, or a JSON document that includes the audit trail. Exporting writes an audit entry that records the kind of export and the SHA-256 of the exported text.",
+            "This project report is separate from the case export. From a case the examiner can export HTML, CSV, JSON, or a case PDF. Exporting writes an audit entry that records the kind of export and the SHA-256 of the exported text.",
             body,
         )
     )

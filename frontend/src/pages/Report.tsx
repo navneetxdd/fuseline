@@ -66,11 +66,15 @@ function Report({ caseId }: { caseId: string }) {
     void load()
   }, [load])
 
-  async function onExport(kind: 'html' | 'csv' | 'json' | 'pdf', raw = false) {
+  async function onExport(kind: 'html' | 'csv' | 'json' | 'pdf' | 'project', raw = false) {
     const label = raw ? 'csv-raw' : kind
     setExporting(label)
     setError(null)
     try {
+      if (kind === 'project') {
+        await downloadExport('/api/project-report', 'Fuseline-Capstone-Report.pdf')
+        return
+      }
       if (kind === 'html') window.open(`/api/cases/${caseId}/report/html`, '_blank', 'noopener,noreferrer')
       else if (kind === 'pdf') {
         await downloadExport(`/api/cases/${caseId}/report/pdf`, `fuseline_${caseId.slice(0, 8)}.pdf`)
@@ -126,12 +130,10 @@ function Report({ caseId }: { caseId: string }) {
               <p className="muted">
                 {report.case.name}
                 {report.case.examiner ? ` · ${report.case.examiner}` : ''} · device timezone {report.case.timezone}.
-                The PDF uses the same seven sections. Section 4 is this case.
+                Project report is the capstone write-up. Case PDF is this case.
               </p>
             ) : (
-              <p className="muted">
-                Solution required, solution proposed, algorithm, outcome, conclusion, inference, and references.
-              </p>
+              <p className="muted">Project report is the capstone write-up. Case PDF is this case.</p>
             )}
           </div>
           <div className="row">
@@ -141,10 +143,18 @@ function Report({ caseId }: { caseId: string }) {
             <button
               type="button"
               className="btn accent small"
+              disabled={exporting === 'project'}
+              onClick={() => void onExport('project')}
+            >
+              {exporting === 'project' ? 'Preparing…' : 'Project report'}
+            </button>
+            <button
+              type="button"
+              className="btn secondary small"
               disabled={!!exporting || !report}
               onClick={() => void onExport('pdf')}
             >
-              {exporting === 'pdf' ? 'Preparing PDF…' : 'Download PDF'}
+              {exporting === 'pdf' ? 'Preparing PDF…' : 'Case PDF'}
             </button>
             <button
               type="button"

@@ -67,6 +67,20 @@ async def unhandled_error(request: Request, exc: Exception) -> JSONResponse:
     return JSONResponse({"detail": "Internal server error"}, status_code=500)
 
 
+PROJECT_REPORT = Path(__file__).resolve().parents[2] / "docs" / "Fuseline-Capstone-Report.pdf"
+
+
+@app.get("/api/project-report")
+def project_report() -> FileResponse:
+    if not PROJECT_REPORT.is_file():
+        raise HTTPException(status_code=404, detail="Project report has not been generated")
+    return FileResponse(
+        PROJECT_REPORT,
+        media_type="application/pdf",
+        filename="Fuseline-Capstone-Report.pdf",
+    )
+
+
 @app.get("/api/health")
 def health() -> dict:
     return {"status": "ok", "service": "fuseline", "version": __version__}

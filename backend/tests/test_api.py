@@ -41,6 +41,14 @@ def test_health_and_meta(client):
     assert {f["parser"] for f in meta["formats"]} >= {"chromium_history", "location", "plaso_timeline"}
 
 
+def test_project_report_is_the_capstone_pdf(client):
+    response = client.get("/api/project-report")
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("application/pdf")
+    assert response.content.startswith(b"%PDF")
+    assert "Fuseline-Capstone-Report.pdf" in response.headers["content-disposition"]
+
+
 def test_case_crud_and_validation(client, make_case):
     r = client.post("/api/cases", json={"name": "  Device A  ", "examiner": " Sam ", "timezone": "Asia/Kolkata"})
     assert r.status_code == 201
