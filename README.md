@@ -266,6 +266,16 @@ docs/                Problem statement, screenshots
 data/                Runtime case DBs, evidence copies, audit log (gitignored)
 ```
 
+## Project report
+
+The capstone report is generated from this repository:
+
+```bash
+python scripts/build_project_report.py
+```
+
+That writes `docs/Fuseline-Capstone-Report.pdf`.
+
 ## Development
 
 ```bash
