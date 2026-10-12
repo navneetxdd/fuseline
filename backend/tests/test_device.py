@@ -148,6 +148,10 @@ def test_is_pullable_export_name_rejects_traversal():
     assert not device._is_pullable_export_name("../etc/passwd")
     assert not device._is_pullable_export_name("evil.exe")
     assert not device._is_pullable_export_name("a/b.csv")
+    assert device._is_pullable_export_name("usagestats.xml")
+    assert not device._is_pullable_export_name("tone.xml")
+    assert not device._is_safe_export_path("/sdcard/Documents/ringtone/gamefree/jly3/a/tone.xml")
+    assert device._is_safe_export_path("/sdcard/Download/usagestats.xml")
 
 
 def test_list_shared_exports_filters_supported_names(monkeypatch):

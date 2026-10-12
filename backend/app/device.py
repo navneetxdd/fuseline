@@ -30,13 +30,29 @@ EXPORT_SUFFIXES = (
     ".csv",
     ".json",
     ".gpx",
-    ".xml",
     ".txt",
     ".db",
     ".sqlite",
     ".sqlite3",
 )
+# Usage-stats XML only. A blanket ".xml" match also hits ringtone packs (tone.xml).
+EXPORT_XML_MARKERS = ("usagestats", "usage-stats", "usage_stats")
 EXPORT_EXACT_NAMES = {"history", "places.sqlite", "records.json"}
+# Shared-storage folders that hold media, not examiner exports.
+SKIP_DIR_NAMES = frozenset(
+    {
+        "ringtone",
+        "ringtones",
+        "notifications",
+        "alarms",
+        "music",
+        "movies",
+        "pictures",
+        "dcim",
+        "podcasts",
+        "audiobooks",
+    }
+)
 # Public shared storage roots (no root). Subfolders included via `find` (Takeout, etc.).
 SCAN_ROOTS = (
     "/sdcard/Download",
@@ -214,6 +230,8 @@ def _is_pullable_export_name(name: str) -> bool:
     lower = name.lower()
     if lower in EXPORT_EXACT_NAMES:
         return True
+    if lower.endswith(".xml"):
+        return any(marker in lower for marker in EXPORT_XML_MARKERS)
     return any(lower.endswith(suf) for suf in EXPORT_SUFFIXES)
 
 
@@ -229,8 +247,10 @@ def _is_safe_export_path(remote_path: str) -> bool:
         return False
     if not any(remote_path == root or remote_path.startswith(f"{root}/") for root in SCAN_ROOTS):
         return False
-    base = remote_path.rsplit("/", 1)[-1]
-    return _is_pullable_export_name(base)
+    parts = [part for part in remote_path.split("/") if part]
+    if any(part.lower() in SKIP_DIR_NAMES for part in parts[:-1]):
+        return False
+    return _is_pullable_export_name(parts[-1])
 
 
 def _export_from_remote(remote_path: str) -> SharedExport:
